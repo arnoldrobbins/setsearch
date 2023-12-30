@@ -1,0 +1,589 @@
+\input texinfo   @c -*-texinfo-*-
+@c vim: filetype=texinfo tabstop=4 shiftwidth=4
+@c %**start of header (This is for running Texinfo on a region.)
+@setfilename setsearch.info
+@settitle Efficient Searching of Large Character Sets
+@c %**end of header (This is for running Texinfo on a region.)
+
+@c Change how xref titles are quoted.
+@dquotexrefs
+@ifclear FORPRINT
+@pdflinkcolor
+@urllinkcolor
+@hideurls
+@end ifclear
+
+
+@c The following information should be updated here only!
+@c This sets the edition of the document.
+
+@c These apply across the board.
+@set UPDATE-MONTH January, 2024
+@set EDITION 0.1
+
+@set TITLE Efficient Searching of Large Character Sets
+@set SHORTTITLE Searching Character Sets
+
+@iftex
+@set DOCUMENT book
+@set CHAPTER chapter
+@set APPENDIX appendix
+@set SECTION section
+@set SUBSECTION subsection
+@end iftex
+@ifhtml
+@set DOCUMENT Web page
+@set CHAPTER chapter
+@set APPENDIX appendix
+@set SECTION section
+@set SUBSECTION subsection
+@end ifhtml
+@ifinfo
+@set DOCUMENT Info file
+@set CHAPTER major node
+@set APPENDIX major node
+@set SECTION minor node
+@set SUBSECTION node
+@end ifinfo
+@ifdocbook
+@set DOCUMENT book
+@set CHAPTER chapter
+@set APPENDIX appendix
+@set SECTION section
+@set SUBSECTION subsection
+@end ifdocbook
+
+@c some special symbols
+@ifnottex
+@macro ii{text}
+@i{\text\}
+@end macro
+@end ifnottex
+
+@c merge the function and variable indexes into the concept index
+@c do so without the code font, and in the index entries do the
+@c font management ourselves.  Also merge in the chunk definition
+@c and reference entries, which jrweave creates for us.
+@ifnothtml
+@synindex fn cp
+@synindex vr cp
+@synindex cd cp
+@synindex cr cp
+@end ifnothtml
+
+@c If "finalout" is commented out, the printed output will show
+@c black boxes that mark lines that are too long.  Thus, it is
+@c unwise to comment it out when running a master in case there are
+@c overfulls which are deemed okay.
+
+@iftex
+@c @finalout
+@end iftex
+
+@copying
+@docbook
+<para>Published by:</para>
+
+<literallayout class="normal">Arnold David Robbins
+P.O. Box 354
+Nof Ayalon 9978500
+ISRAEL
+Email: <email>arnold@@skeeve.com</email>
+URL: <ulink url="https://www.skeeve.com/">https://www.skeeve.com/</ulink></literallayout>
+
+<literallayout class="normal">Copyright &copy; 2024
+Arnold David Robbins
+All Rights Reserved.</literallayout>
+@end docbook
+
+@ifnotdocbook
+Copyright @copyright{} 2024 @*
+Arnold David Robbins @*
+All Rights Reserved.
+@end ifnotdocbook
+@sp 1
+The setsearch program is copyright
+@copyright{} 2024 by Arnold David Robbins.
+@c It is published under the conditions of a BSD license yet to be determined.
+Not for publication, yet.
+@sp 2
+This is Edition @value{EDITION} of @cite{@value{TITLE}}.
+@end copying
+
+@c Uncomment this for the release.  Leaving it off saves paper
+@c during editing and review.
+@c @setchapternewpage odd
+
+@c Uncomment this if it's ever printed as a real book(let).
+@c @shorttitlepage @value{SHORTTITLE}
+
+@titlepage
+@title @value{TITLE}
+@subtitle @value{UPDATE-MONTH}
+@author Arnold David Robbins
+
+@ifnotdocbook
+@c Include the Distribution inside the titlepage environment so
+@c that headings are turned off.  Headings on and off do not work.
+
+@page
+@vskip 0pt plus 1filll
+Published by:
+@sp 1
+Arnold David Robbins @*
+P.O. Box 354 @*
+Nof Ayalon 9978500 @*
+ISRAEL @*
+Email: @EMAIL{arnold@@skeeve.com,arnold AT skeeve.com} @*
+URL: @url{https://www.skeeve.com/} @*
+
+@insertcopying
+@end ifnotdocbook
+@end titlepage
+
+@set DRAFT @i{DRAFT}
+
+@iftex
+@headings off
+@evenheading @thispage @| @value{DRAFT} @| @strong{@value{SHORTTITLE}}
+@oddheading  @strong{@thischapter} @| @value{DRAFT} @| @thispage
+@end iftex
+
+@ifnottex
+@ifnotdocbook
+@ifnotxml
+@node Top
+@top General Introduction
+@c Preface node should come right after the Top
+@c node, in `unnumbered' sections, then the introductory chapter.
+@c Licensing nodes are appendices, they're not central to TexiWebJr.
+
+This file documents @code{setsearch}, a set of functions that accept
+a wide character value and search a defined set of characters to
+see if the value is in the set.  It is intended for use within
+a regular expression matching library.
+
+@insertcopying
+@end ifnotxml
+@end ifnotdocbook
+@end ifnottex
+
+@menu
+@detailmenu
+@end detailmenu
+@end menu
+
+@c @summarycontents
+@contents
+
+@c Add these to the menu if they ever get included.
+@c @node Foreword
+@c @unnumbered Foreword
+
+@node Preface
+@unnumbered Preface
+
+This @value{DOCUMENT} documents @code{setsearch}, a set of functions that accept
+a wide character value and search a defined set of characters to
+see if the value is in the set.  It is intended for use within
+a regular expression matching library.
+
+@menu
+* Audience::                    Who should read this @value{DOCUMENT}.
+* Overview::                    An overview of the @value{DOCUMENT}.
+* Conventions::                 Typographical conventions.
+* Acknowledgements::            Acknowledgements.
+@end menu
+
+@node Audience
+@unnumberedsec Intended Audience
+
+If you're interested in one way to search bracket expressions for
+a matching character value when using very large character sets
+(such as Unicode), you should read this @value{DOCUMENT}.
+
+@node Overview
+@unnumberedsec What Is Covered
+
+Text and chapter by chapter description here.
+
+@node Conventions
+@unnumberedsec Typographical Conventions
+
+@c Copied mostly verbatim from the gawk manual.
+
+@cindex Texinfo document formatting language
+This @value{DOCUMENT} is written in an enhanced version of
+@uref{https://www.gnu.org/software/texinfo/, Texinfo},
+the GNU documentation formatting language.
+A single Texinfo source file is used to produce both the printed and online
+versions of a program's documentation.
+@ifnotinfo
+Because of this, the typographical conventions
+are slightly different than in other books you may have read.
+@end ifnotinfo
+
+Examples you would type at the command-line are preceded by the common
+shell primary and secondary prompts, @samp{$} and @samp{>}.  Input that
+you type is shown @kbd{like this}.  Output from the command is preceded
+by the glyph ``@print{}''.  This typically represents the command's
+standard output.  Error messages, and other output on the command's
+standard error, are preceded by the glyph ``@error{}''.  For example:
+
+@example
+$ @kbd{echo hi on stdout}
+@print{} hi on stdout
+$ @kbd{echo hello on stderr 1>&2}
+@error{} hello on stderr
+@end example
+
+@ifnotinfo
+In the text, command names appear in @code{this font}, while code segments
+appear in the same font and quoted, @samp{like this}.  Options look
+like this: @option{-f}.  Some things are emphasized @emph{like this},
+and if a point needs to be made strongly, it is done @strong{like this}.
+The first occurrence of a new term is usually its @dfn{definition} and
+appears in the same font as the previous occurrence of ``definition''
+in this sentence.  Finally, file names are indicated like this:
+@file{/path/to/our/file}.
+@end ifnotinfo
+
+@node Acknowledgements
+@unnumberedsec Acknowledgements
+
+Your name here@dots{}
+
+@node Introduction
+@chapter Introduction
+
+In the fall of 2023, Mike Haertel started writing a new regular expression library,
+@code{minrx}, with the aim of eventually replacing the matchers in use by GNU Awk
+(@command{gawk}).  The initial version is in C++; it will eventually be translated
+to C for portability. As of December 2023, it's working fully, with the exception
+of matching multibyte-encoded characters.
+
+As part of the discussion between Mike and myself, I offered a rough draft of a
+data structure to use for quickly seeing if a character matches a @dfn{bracket expression},
+which is a construct used with regular expressions to represent sets of different
+kinds of characters to be matched.
+
+The ideas for this data structure and how to use it have been bouncing around in
+my head for some time. This @value{DOCUMENT} presents the design and implementation
+of a sublibrary (so to speak) for dealing with bracket expressions.
+
+@node API
+@chapter The C API
+
+The routines here will eventually be called from C.  I've chosen to just
+write everything in C from the beginning, since ideas are pretty straightforward
+and I don't need any of the fancy capabilities of C++.
+
+API design needs careful thought. In this case, we have to take into account
+how these routines will be used by a regular expression matcher. Here is
+the header file with the declarations.  I've chosen to keep the data structures
+opaque, and to provide routines that manipulate them and return results.
+
+@(bracketexpr.h@)=
+#ifndef BRACKET_EXPR_H
+#define BRACKET_EXPR_H	1
+
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdint.h>
+
+typedef struct _bracket_expr BRACKET_EXPR;
+
+const BRACKET_EXPR *bracket_expr_create(const char *expr, char **endp,
+  										bool escapes_allowed, const char **error);
+
+bool bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char);
+
+bool bracket_expr_free(const BRACKET_EXPR *brack_expr);
+
+void bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp);
+#endif // BRACKET_EXPR_H
+@
+
+The routines and what they do are as follows:
+
+@table @code
+@item const BRACKET_EXPR *bracket_expr_create(const char *expr, char **endp,
+@item@ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool escapes_allowed, const char **error)
+@code{*expr} should be the opening @code{[} of the bracket expression.
+Parse the bracket expression pointed to by @code{expr}. Upon success,
+return a non-@code{NULL} pointer to an opaque structure to be used later, and set
+@code{*endp} to point to the byte immediately following the closing
+@code{]}. @code{escapes_allowed} is @code{true} if @code{\} may be used to
+escape characters within the bracket expression, such as @samp{[ab\]d]},
+which is needed for the @command{awk} language. @code{expr} must be a
+NUL-terminated standard C string.
+
+Upon failure, return @code{NULL} and set @code{*error} to point
+to a string describing the problem.  The string will@footnote{Eventually.}
+already have been translated by @code{gettext()}.
+
+@item bool bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char)
+Return true if @code{the_char} is found in the set described by
+@code{brack_expr}, @code{false} otherwise.
+
+@item bool bracket_expr_free(const BRACKET_EXPR *brack_expr)
+Release the storage used by @code{brack_expr}.
+
+@item void bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
+Dump the internal data structures to the given open file.
+I could instead have provided a variable @samp{extern FILE *brack_expr_fp}
+initialized to @code{stderr}, but that isn't thread-safe; it's better
+to not depend upon global variables.
+@end table
+
+The API of @code{bracket_expr_create()} is intended to be easy to
+use by the compilation phase of regexp matcher, which has to
+work its way through the entire text of the regexp.
+
+The source code starts out with the usual includes:
+
+@(bracketexpr.c@)=
+@<includes@>
+@
+
+@<includes@>=
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <wchar.h>
+#include <wctype.h>
+@
+
+@node The Data Structure
+@chapter The Data Structure
+
+A single item in the set is represented by
+a set item:
+
+@(bracketexpr.c@)=
+#include "bracketexpr.h"	// for the BRACKET_EXPR typedef
+
+typedef struct set_item {
+	enum set_item_type {
+		CTYPE_ITEM,
+		RANGE_ITEM,
+	} item_type;
+	union {
+		int (*iswXXX)(wint_t wc);
+		struct _range {
+			int32_t start, end;
+		} r;
+	} u;
+} set_item;
+#define iswXXX	u.iswXXX
+#define start	u.r.start
+#define end		u.r.end
+@
+
+The item either holds a function pointer to a function
+such as @code{iswalpha()}, corresponding to the
+character class @code{[:alpha:]} within a bracket expression,
+or a range, such as @code{[a-z]}. Single characters that
+aren't contiguous with others have @code{start} and @code{end} set to
+the same value.
+
+The full bracket expression holds a dynamically allocated
+array of @code{set_items}, plus what's needed for managing
+the memory:
+
+@(bracketexpr.c@)=
+struct _bracket_expr {
+	bool	complemented;	// For [^...] sets
+	size_t	nelems;			// Number of elements
+	set_item *items;		// Array of items
+};
+@
+
+We will have need of some private but file-global data,
+as well:
+
+@(bracketexpr.c@)=
+@<global data@>
+@
+
+@node The Easy Stuff
+@chapter The Easy Functions
+
+Let's get the easier functions out of the way.
+A fundamental assumption is that the array of items
+is sorted and uniqued. In addition, all @code{CTYPE_ITEM}s
+are at the front of the array, so that they can be tested
+first.
+
+@(bracketexpr.c@)=
+@<function to really search@>
+
+/* bracket_expr_match --- see if a character matches the expression */
+
+bool
+bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char)
+{
+	if (brack_expr == NULL)
+		return false;
+
+	bool found = is_found(brack_expr, the_char);
+	if (brack_expr->complemented)
+		found = ! found;		// reverse sense of the match
+
+	return found;
+}
+
+
+/* bracket_expr_free --- free all storage */
+
+bool
+bracket_expr_free(const BRACKET_EXPR *brack_expr)
+{
+	if (brack_expr == NULL)
+		return false;
+
+	free((void *) brack_expr->items);
+	free((void *) brack_expr);
+
+	return true;
+}
+@
+
+Actually searching is separate from the ``is complemented'' test to
+keep things simple:
+
+@<function to really search@>=
+/* is_found --- return true if the character is found */
+
+static bool
+is_found(const BRACKET_EXPR *brack_expr, int32_t the_char)
+{
+	set_item *set = brack_expr->items;
+
+	for (int i = 0; i < brack_expr->nelems; i++) {
+		// linear search of ctype items, there can be
+		// no more than 12 of them.
+		if (set[i].item_type == CTYPE_ITEM) {
+			if (set[i].iswXXX(the_char))
+				return true;
+			continue;
+		}
+
+		// FIXME: This is a linear search. Move it to a binary search
+		// based on the number of items.
+		assert(set[i].item_type == RANGE_ITEM);
+		if (set[i].start <= the_char && the_char <= set[i].end)
+			return true;
+	}
+
+	return false;
+}
+@
+
+We need the header file for assertions:
+
+@<includes@>=
+#include <assert.h>
+@
+
+Dumping the data requires a table of @code{<wctype.h>} functions
+that will be useful both for debugging and for construction of
+the data.
+
+@<global data@>=
+static struct _ctype_functions {
+	const char *name;		// name
+	int (*fp)(wint_t ch);	// function pointer
+} ctype_functions[] = {
+	{ "alnum", iswalnum },
+	{ "alpha", iswalpha },
+	{ "blank", iswblank },
+	{ "cntrl", iswcntrl },
+	{ "digit", iswdigit },
+	{ "graph", iswgraph },
+	{ "lower", iswlower },
+	{ "print", iswprint },
+	{ "punct", iswpunct },
+	{ "space", iswspace },
+	{ "upper", iswupper },
+	{ "xdigit", iswxdigit },
+	{ NULL, NULL }
+};
+@
+
+@(bracketexpr.c@)=
+/* find_ctype_name --- helper function to get the name from a function pointer */
+
+static const char *
+find_ctype_name( int (*fp)(wint_t ch) )
+{
+	for (int i = 0; ctype_functions[i].fp != NULL; i++)
+		if (ctype_functions[i].fp == fp)
+			return ctype_functions[i].name;
+
+	return NULL;	// really shouldn't happen
+}
+
+void
+bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
+{
+	if (brack_expr == NULL || fp == NULL)
+		return;
+
+	set_item *set = brack_expr->items;
+	for (int i; i < brack_expr->nelems; i++) {
+		if (set[i].item_type == CTYPE_ITEM) {
+			fprintf(fp, "%3d. CTYPE: %s()\n", i, find_ctype_name(set[i].iswXXX));
+			continue;
+		}
+		assert(set[i].item_type == RANGE_ITEM);
+		fprintf(fp, "%3d. RANGE: start = L'%lc', end = L'%lc'\n",
+			i, set[i].start, set[i].end);
+	}
+	fflush(fp);
+}
+@
+
+@node First appendix
+@appendix First Appendix Title
+
+@node Code Chunk Summaries
+@appendix Code Chunk Summaries
+
+This @value{APPENDIX} presents alphabetical lists of
+all the file definitions, the code chunk definitions,
+and the code chunk references.
+
+@menu
+* File Definitions::          Source files by definition.
+* Code Chunk Definitions::    Code chunks by definition.
+* Code Chunk References::     Code chunks by reference.
+@end menu
+
+@node File Definitions
+@appendixsec Source File Definitions
+
+@print_file_defs
+
+@node Code Chunk Definitions
+@appendixsec Code Chunk Definitions
+
+@print_code_defs
+
+@node Code Chunk References
+@appendixsec Code Chunk References
+
+@print_code_refs
+
+@node Bibliography
+@unnumbered Bibliography
+
+@node Concept Index
+@unnumbered Index
+
+@printindex cp
+
+@bye
+
+TODO:
