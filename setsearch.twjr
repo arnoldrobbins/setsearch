@@ -285,16 +285,20 @@ opaque, and to provide routines that manipulate them and return results.
 
 @(bracketexpr.h@)=
 #ifndef BRACKET_EXPR_H
-#define BRACKET_EXPR_H	1
+#define BRACKET_EXPR_H  1
 
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 typedef struct _bracket_expr BRACKET_EXPR;
 
-const BRACKET_EXPR *bracket_expr_create(const char *expr, char **endp,
-  										bool escapes_allowed, const char **error);
+const BRACKET_EXPR *bracket_expr_create(const char *expr,
+                                        char **endp,
+                                        bool escapes_allowed,
+                                        char *errbuf,
+                                        size_t errbuf_size);
 
 bool bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char);
 
@@ -307,20 +311,41 @@ void bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp);
 The routines and what they do are as follows:
 
 @table @code
-@item const BRACKET_EXPR *bracket_expr_create(const char *expr, char **endp,
-@item@ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool escapes_allowed, const char **error)
-@code{*expr} should be the opening @code{[} of the bracket expression.
-Parse the bracket expression pointed to by @code{expr}. Upon success,
-return a non-@code{NULL} pointer to an opaque structure to be used later, and set
-@code{*endp} to point to the byte immediately following the closing
-@code{]}. @code{escapes_allowed} is @code{true} if @code{\} may be used to
-escape characters within the bracket expression, such as @samp{[ab\]d]},
-which is needed for the @command{awk} language. @code{expr} must be a
-NUL-terminated standard C string.
+@item const BRACKET_EXPR *bracket_expr_create(const char *expr,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char **endp,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool escapes_allowed,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char *errbuf,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t errbuf_size)
+This function parses the bracket expression, and if successful, returns
+a pointer to an opaque @code{BRACKET_EXPR} structure to be used by other
+routines. Upon failure, it returns @code{NULL}.  The parameters are:
 
-Upon failure, return @code{NULL} and set @code{*error} to point
-to a string describing the problem.  The string will@footnote{Eventually.}
+@c nested table
+@table @code
+@item const char *expr
+A pointer to the opening @code{'['} of the bracket expression.
+@code{expr} must be a NUL-terminated standard C string.
+
+@item char **endp
+A pointer to a pointer. Upon success, @code{*end} is set to point to
+the byte immediately following the closing @code{']'}.
+
+@item bool escapes_allowed
+This should be set to
+@code{true} if @samp{\} may be used to
+escape characters within the bracket expression, such as @code{[ab\]d]},
+which is needed for the @command{awk} language.
+
+@item char *errbuf
+The address of a buffer into which @code{bracket_expr_create()} will
+write a message upon failure.
+The message will@footnote{Eventually.}
 already have been translated by @code{gettext()}.
+
+@item size_t errbuf_size
+The size of @code{errbuf}'s buffer.
+@end table
+@c end nested table
 
 @item bool bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char)
 Return true if @code{the_char} is found in the set described by
@@ -496,18 +521,18 @@ static struct _ctype_functions {
 	const char *name;		// name
 	int (*fp)(wint_t ch);	// function pointer
 } ctype_functions[] = {
-	{ "alnum", iswalnum },
-	{ "alpha", iswalpha },
-	{ "blank", iswblank },
-	{ "cntrl", iswcntrl },
-	{ "digit", iswdigit },
-	{ "graph", iswgraph },
-	{ "lower", iswlower },
-	{ "print", iswprint },
-	{ "punct", iswpunct },
-	{ "space", iswspace },
-	{ "upper", iswupper },
-	{ "xdigit", iswxdigit },
+	{ "[:alnum:]", iswalnum },
+	{ "[:alpha:]", iswalpha },
+	{ "[:blank:]", iswblank },
+	{ "[:cntrl:]", iswcntrl },
+	{ "[:digit:]", iswdigit },
+	{ "[:graph:]", iswgraph },
+	{ "[:lower:]", iswlower },
+	{ "[:print:]", iswprint },
+	{ "[:punct:]", iswpunct },
+	{ "[:space:]", iswspace },
+	{ "[:upper:]", iswupper },
+	{ "[:xdigit:]", iswxdigit },
 	{ NULL, NULL }
 };
 @
