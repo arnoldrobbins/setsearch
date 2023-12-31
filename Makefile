@@ -13,8 +13,10 @@ PDF = setsearch.pdf
 all: $(PDF) $(OBJ)
 
 $(PDF): $(DOC) texinfo.tex
-	./jrweave $(TWJRSOURCE) > $(DOC)
 	texi2pdf $(DOC)
+
+$(DOC): $(TWJRSOURCE)
+	./jrweave $(TWJRSOURCE) > $(DOC)
 
 $(OBJ): $(SOURCE)
 
@@ -22,4 +24,4 @@ $(SOURCE): $(TWJRSOURCE)
 	./jrtangle $(TWJRSOURCE)
 
 clean:
-	rm -f *.[ch] setsearch.?? setsearch.???
+	rm -f *.[cho] setsearch.?? setsearch.??? setsearch.texi

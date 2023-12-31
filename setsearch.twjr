@@ -287,6 +287,8 @@ opaque, and to provide routines that manipulate them and return results.
 #ifndef BRACKET_EXPR_H
 #define BRACKET_EXPR_H  1
 
+@<Copyright statement@>
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -352,7 +354,8 @@ Return true if @code{the_char} is found in the set described by
 @code{brack_expr}, @code{false} otherwise.
 
 @item bool bracket_expr_free(const BRACKET_EXPR *brack_expr)
-Release the storage used by @code{brack_expr}.
+Release the storage used by @code{brack_expr}. Return @code{false}
+if @code{brack_expr} is @code{NULL}, @code{true} otherwise.
 
 @item void bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
 Dump the internal data structures to the given open file.
@@ -365,11 +368,29 @@ The API of @code{bracket_expr_create()} is intended to be easy to
 use by the compilation phase of regexp matcher, which has to
 work its way through the entire text of the regexp.
 
-The source code starts out with the usual includes:
+The source code starts out with the usual includes,
+followed by the other things one might expect:
 
 @(bracketexpr.c@)=
+@<Copyright statement@>
+
 @<includes@>
+
+@<data structures@>
+
+@<helper functions@>
+
+@<API functions@>
 @
+
+To get it out of the way, here is the copyright statement.
+
+@<Copyright statement@>=
+// Copyright (C) 2024, Arnold David Robbins.
+// All rights reserved.  Not for redistribution (yet...).
+@
+
+We include the standard header files that we'll need:
 
 @<includes@>=
 #include <stdio.h>
@@ -380,15 +401,13 @@ The source code starts out with the usual includes:
 #include <wctype.h>
 @
 
-@node The Data Structure
-@chapter The Data Structure
+@node The Data Structures
+@chapter The Data Structures
 
 A single item in the set is represented by
 a set item:
 
-@(bracketexpr.c@)=
-#include "bracketexpr.h"	// for the BRACKET_EXPR typedef
-
+@<data structures@>=
 typedef struct set_item {
 	enum set_item_type {
 		CTYPE_ITEM,
@@ -417,7 +436,7 @@ The full bracket expression holds a dynamically allocated
 array of @code{set_items}, plus what's needed for managing
 the memory:
 
-@(bracketexpr.c@)=
+@<data structures@>=
 struct _bracket_expr {
 	bool	complemented;	// For [^...] sets
 	size_t	nelems;			// Number of elements
@@ -425,11 +444,10 @@ struct _bracket_expr {
 };
 @
 
-We will have need of some private but file-global data,
-as well:
+Finally, we need the API header to get the @code{BRACKET_EXPR} @code{typedef}:
 
-@(bracketexpr.c@)=
-@<global data@>
+@<includes@>=
+#include "bracketexpr.h"	// for the BRACKET_EXPR typedef
 @
 
 @node The Easy Stuff
@@ -441,9 +459,7 @@ is sorted and uniqued. In addition, all @code{CTYPE_ITEM}s
 are at the front of the array, so that they can be tested
 first.
 
-@(bracketexpr.c@)=
-@<function to really search@>
-
+@<API functions@>=
 /* bracket_expr_match --- see if a character matches the expression */
 
 bool
@@ -458,7 +474,6 @@ bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char)
 
 	return found;
 }
-
 
 /* bracket_expr_free --- free all storage */
 
@@ -475,18 +490,23 @@ bracket_expr_free(const BRACKET_EXPR *brack_expr)
 }
 @
 
-Actually searching is separate from the ``is complemented'' test to
+The actual searching is separate from the ``is complemented'' test to
 keep things simple:
 
-@<function to really search@>=
+@<helper functions@>=
+static set_item key;
+
+@<item compare function@>
+
 /* is_found --- return true if the character is found */
 
 static bool
 is_found(const BRACKET_EXPR *brack_expr, int32_t the_char)
 {
 	set_item *set = brack_expr->items;
+	int i;
 
-	for (int i = 0; i < brack_expr->nelems; i++) {
+	for (i = 0; i < brack_expr->nelems; i++) {
 		// linear search of ctype items, there can be
 		// no more than 12 of them.
 		if (set[i].item_type == CTYPE_ITEM) {
@@ -494,27 +514,102 @@ is_found(const BRACKET_EXPR *brack_expr, int32_t the_char)
 				return true;
 			continue;
 		}
-
-		// FIXME: This is a linear search. Move it to a binary search
-		// based on the number of items.
-		assert(set[i].item_type == RANGE_ITEM);
-		if (set[i].start <= the_char && the_char <= set[i].end)
-			return true;
 	}
 
-	return false;
+	if (i >= brack_expr->nelems)
+		return false;
+
+	assert(set[i].item_type == RANGE_ITEM);
+
+	// binary search to see if we have it
+	set_item *found;
+	key.item_type = RANGE_ITEM;
+	key.start = key.end = the_char;
+
+	found = bsearch(& key, set + i, brack_expr->nelems - i,
+					sizeof(set_item), item_compare_for_searching);
+
+	return found != NULL;
 }
 @
 
 We need the header file for assertions:
+@strong{FIXME:} Maybe move this up to the first chunk.
 
 @<includes@>=
 #include <assert.h>
 @
 
+We need a comparison function for use by @code{bsearch()} and (as it
+turns out) a slightly different one for use by by @code{qsort()}. We
+want @code{CTYPE_ITEM}s to sort to the front of the list.  For sorting,
+we sort the @code{RANGE_ITEM}s based on their @code{start} value.
+For searching, we have to compare with the value in @code{key}:
+
+@<item compare function@>=
+/* item_compare_for_searching --- compare two set_items */
+
+static int
+item_compare_for_searching(const void *l, const void *r)
+{
+	set_item *left = (set_item *) l;
+	set_item *right = (set_item *) r;
+
+	@<compare two @code{CTYPE_ITEM}s and items of different types@>
+	} else {
+		// two RANGE_ITEMs, find one that supports key
+
+		// ?!? Is this right ?!?
+		if (left->end < key.start)
+			return -1;
+		else if (right->start > key.end)
+			return +1;
+		else
+			return 0;
+	}
+}
+
+/* item_compare_for_sorting --- compare two set_items */
+
+static int
+item_compare_for_sorting(const void *l, const void *r)
+{
+	set_item *left = (set_item *) l;
+	set_item *right = (set_item *) r;
+
+	@<compare two @code{CTYPE_ITEM}s and items of different types@>
+	} else {
+		return left->start - right->start;	// two RANGE_ITEMs
+	}
+}
+@
+
+We factor out the common comparison code, so that it only has
+to be written once. This is one of the nice parts about
+Literate Programming.
+
+@<compare two @code{CTYPE_ITEM}s and items of different types@>=
+if (left->item_type == CTYPE_ITEM && right->item_type == CTYPE_ITEM) {
+	// compare pointers
+	if (left->iswXXX < right->iswXXX)
+		return -1;
+	else if (left->iswXXX == right->iswXXX)
+		return 0;
+	else
+		return +1;
+} else if (left->item_type == CTYPE_ITEM && right->item_type == RANGE_ITEM) {
+	return -1;
+} else if (left->item_type == RANGE_ITEM && right->item_type == CTYPE_ITEM) {
+	return +1;
+@
+
 Dumping the data requires a table of @code{<wctype.h>} functions
 that will be useful both for debugging and for construction of
 the data.
+
+@<data structures@>=
+@<global data@>
+@
 
 @<global data@>=
 static struct _ctype_functions {
@@ -537,7 +632,30 @@ static struct _ctype_functions {
 };
 @
 
-@(bracketexpr.c@)=
+@<API functions@>=
+/* bracket_expr_dump --- dump out the data structures */
+
+void
+bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
+{
+	if (brack_expr == NULL || fp == NULL)
+		return;
+
+	set_item *set = brack_expr->items;
+	for (int i; i < brack_expr->nelems; i++) {
+		if (set[i].item_type == CTYPE_ITEM) {
+			fprintf(fp, "%3d. CTYPE: %s\n", i, find_ctype_name(set[i].iswXXX));
+			continue;
+		}
+		assert(set[i].item_type == RANGE_ITEM);
+		fprintf(fp, "%3d. RANGE: start = L'%lc', end = L'%lc'\n",
+			i, set[i].start, set[i].end);
+	}
+	fflush(fp);
+}
+@
+
+@<helper functions@>=
 /* find_ctype_name --- helper function to get the name from a function pointer */
 
 static const char *
@@ -549,25 +667,113 @@ find_ctype_name( int (*fp)(wint_t ch) )
 
 	return NULL;	// really shouldn't happen
 }
+@
 
-void
-bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
+@node Parsing the set
+@chapter Parsing The Set
+
+Now that we've seen how the data structures are used
+once they've been built, we get to the hard part, which
+is transforming the text of the bracket expression
+into the data structure.
+
+@<API Functions@>=
+const BRACKET_EXPR *bracket_expr_create(const char *expr,
+                                        char **endp,
+                                        bool escapes_allowed,
+                                        char *errbuf,
+                                        size_t errbuf_size)
 {
-	if (brack_expr == NULL || fp == NULL)
-		return;
+	if (expr == NULL || endp == NULL) {
+		snprintf(errbuf, errbuf_size, "bad pointers received");
+		return NULL;
+	} else if (*expr != '[') {
+		snprintf(errbuf, errbuf_size, "bad bracket expression");
+		return NULL;
+	}
 
-	set_item *set = brack_expr->items;
-	for (int i; i < brack_expr->nelems; i++) {
-		if (set[i].item_type == CTYPE_ITEM) {
-			fprintf(fp, "%3d. CTYPE: %s()\n", i, find_ctype_name(set[i].iswXXX));
+	@<allocate initial data@>
+	item_set *items = bracket_expr->items;
+
+	const char *cp, *end;
+	cp = ++expr;
+	end = cp + strlen(cp);
+
+	// special cases at the beginning
+	if (*expr == '^') {
+		bracket_expr->complemented = true;
+		++expr;
+	}
+	if (*expr == '-') {
+		// '-' as first character is taken literally
+		range_item_push(bracket_expr, L'-', L'-');
+		expr++;
+	}
+
+	for (; cp < end && cp != ']'; cp++) {
+		if (*cp == '\\' && escapes_allowed) {
+			cp++;
+			if (cp == end) {
+				snprintf(errbuf, errbuf_size, "unterminated expression");
+				return NULL;
+			}
+		}
+
+		@<process @code{[:...:]} items@>
+		@<process @code{[=...:=} items@>
+		@<process @code{[.X.]} items@>
+
+		wint_t first_wc, second_wc;
+		@<get first wide character@>
+		if (*cp == '-') {
+			cp++;
+			@<get second wide character@>
+			if (second_wc <= first_wc) {
+					snprintf(errbuf, errbuf_size, "invalid range L'%lc'-L'%lc'", first_wc, second_wc);
+					return NULL;
+			}
+			range_item_push(bracket_expr, first_wc, second_wc);
 			continue;
 		}
-		assert(set[i].item_type == RANGE_ITEM);
-		fprintf(fp, "%3d. RANGE: start = L'%lc', end = L'%lc'\n",
-			i, set[i].start, set[i].end);
+		@<push @code{first_wc} onto wide character list@>
 	}
-	fflush(fp);
+
+	@<sort wide character list@>
+	@<condense wide character list into @code{RANGE_ITEM}s@>
+	@<condense final array of @code{set_item}s@>
+
+	return bracket_expr;
+
+fail:
+	bracket_expr_free(bracket_expr);
+	return NULL;
 }
+@
+
+@<allocate initial data@>=
+BRACKET_EXPR *bracket_expr = (BRACKET_EXPR *) malloc(sizeof(BRACKET_EXPR);
+if (bracket_expr == NULL) {
+		snprintf(errbuf, errbuf_size, "out of memory");
+		return NULL;
+}
+memset(bracket_expr, 0, sizeof(BRACKET_EXPR));
+
+#define INITIAL_SIZE 10
+bracket_expr->items = (item_set *) malloc(INITIAL_SIZE * sizeof(item_set);
+if (bracket_expr->items == NULL) {
+		snprintf(errbuf, errbuf_size, "out of memory");
+		free(bracket_expr);
+		return NULL;
+}
+memset(bracket_expr->items, 0, INITIAL_SIZE * sizeof(item_set));
+@
+
+@<process @code{[=...:=} items@>=
+/* [=...=] not implemented yet */
+@
+
+@<process @code{[.X.]} items@>=
+/* [.X.] not implemented yet */
 @
 
 @node First appendix

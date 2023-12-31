@@ -1,5 +1,10 @@
 2023-12-31         Arnold D. Robbins     <arnold@skeeve.com>
 
+	* Makefile: Improved.
+	* setsearch.twjr: Finish easy APIs, start on the "create" API.
+
+2023-12-31         Arnold D. Robbins     <arnold@skeeve.com>
+
 	* setsearch.twjr (bracket_expr_create): Fix API.
 	* Makefile: New file.
 
