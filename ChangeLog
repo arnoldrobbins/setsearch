@@ -1,3 +1,8 @@
+2024-01-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* jrweave: Small improvement.
+	* setserch.twjr (bracket_expr_create): Progress writing it.
+
 2023-12-31         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* Makefile: Improved.

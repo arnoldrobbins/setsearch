@@ -893,7 +893,7 @@ function format_chunk_name(name, count, type,
 		right = ">"
 		style = "i"
 	} else
-		fatal(_"format_chunk_name: Unknown chunk type `%s'\n", type)
+		fatal(_"format_chunk_name: name = %s, Unknown chunk type `%s', Pass = %d\n", name, type, Pass)
 
 	if (count > 0 && Numbered_chunks)
 		result = sprintf("@r{%s@%s{%s} @oldnum{%d}%s}",
