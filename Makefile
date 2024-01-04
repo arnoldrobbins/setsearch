@@ -1,16 +1,18 @@
 # Makefile for setsearch doc and code
 
+CFLAGS = -g
+
 TWJRSOURCE = setsearch.twjr
 
 SOURCE = bracketexpr.h bracketexpr.c
 
-OBJ = bracketexpr.o
+OBJ = bracketexpr.o testit.o
 
 DOC = setsearch.texi
 
 PDF = setsearch.pdf
 
-all: $(PDF) $(OBJ)
+all: $(PDF) testit
 
 $(PDF): $(DOC) texinfo.tex
 	texi2pdf $(DOC)
@@ -20,8 +22,11 @@ $(DOC): $(TWJRSOURCE)
 
 $(OBJ): $(SOURCE)
 
+testit: $(OBJ)
+	gcc $(OBJ) -o testit
+
 $(SOURCE): $(TWJRSOURCE)
 	./jrtangle $(TWJRSOURCE)
 
 clean:
-	rm -f *.[cho] setsearch.?? setsearch.??? setsearch.texi
+	rm -f *.[cho] setsearch.?? setsearch.??? setsearch.texi testit

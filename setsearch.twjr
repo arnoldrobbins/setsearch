@@ -275,7 +275,7 @@ of a sublibrary (so to speak) for dealing with bracket expressions.
 @chapter The C API
 
 The routines here will eventually be called from C.  I've chosen to just
-write everything in C from the beginning, since ideas are pretty straightforward
+write everything in C from the beginning, since the ideas are pretty straightforward
 and I don't need any of the fancy capabilities of C++.
 
 API design needs careful thought. In this case, we have to take into account
@@ -294,11 +294,16 @@ opaque, and to provide routines that manipulate them and return results.
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct _bracket_expr BRACKET_EXPR;
 
 const BRACKET_EXPR *bracket_expr_create(const char *expr,
                                         char **endp,
                                         bool escapes_allowed,
+                                        bool ignore_case,
                                         char *errbuf,
                                         size_t errbuf_size);
 
@@ -307,6 +312,10 @@ bool bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char);
 bool bracket_expr_free(const BRACKET_EXPR *brack_expr);
 
 void bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp);
+
+#ifdef __cplusplus
+}
+#endif
 #endif // BRACKET_EXPR_H
 @
 
@@ -314,10 +323,11 @@ The routines and what they do are as follows:
 
 @table @code
 @item const BRACKET_EXPR *bracket_expr_create(const char *expr,
-@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char **endp,
-@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool escapes_allowed,
-@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char *errbuf,
-@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t errbuf_size)
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char **endp,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool escapes_allowed,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool ignore_case,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char *errbuf,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t errbuf_size)
 This function parses the bracket expression, and if successful, returns
 a pointer to an opaque @code{BRACKET_EXPR} structure to be used by other
 routines. Upon failure, it returns @code{NULL}.  The parameters are:
@@ -337,6 +347,10 @@ This should be set to
 @code{true} if @samp{\} may be used to
 escape characters within the bracket expression, such as @code{[ab\]d]},
 which is needed for the @command{awk} language.
+
+@item bool ignore_case
+Should be set to true if case should be ignored; e.g., @samp{a} and @samp{A}
+should be treated equivalently.
 
 @item char *errbuf
 The address of a buffer into which @code{bracket_expr_create()} will
@@ -428,7 +442,7 @@ typedef struct set_item {
 #define end		u.r.end
 @
 
-The item either holds a function pointer to a function
+A @code{set_item} holds either a function pointer to a function
 such as @code{iswalpha()}, corresponding to the
 character class @code{[:alpha:]} within a bracket expression,
 or a range, such as @code{[a-z]}. Single characters that
@@ -571,7 +585,8 @@ item_compare_for_sorting(const void *l, const void *r)
 	} else if (left->item_type == RANGE_ITEM && right->item_type == CTYPE_ITEM) {
 		return +1;
 	} else {
-		return left->start - right->start;	// two RANGE_ITEMs
+		assert(left->item_type == RANGE_ITEM && right->item_type == RANGE_ITEM);
+		return left->start - right->start;
 	}
 }
 @
@@ -646,6 +661,9 @@ bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
 	if (brack_expr == NULL || fp == NULL)
 		return;
 
+	if (brack_expr->complemented)
+		fprintf(fp, "complemented = true\n");
+
 	set_item *set = brack_expr->items;
 	for (int i; i < brack_expr->nelems; i++) {
 		if (set[i].item_type == CTYPE_ITEM) {
@@ -659,6 +677,9 @@ bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
 	fflush(fp);
 }
 @
+
+Matching the function to the name is done with a
+simple linear search.
 
 @<helper functions@>=
 /* find_ctype_name --- helper function to get the name from a function pointer */
@@ -686,6 +707,7 @@ into the data structure.
 const BRACKET_EXPR *bracket_expr_create(const char *expr,
                                         char **endp,
                                         bool escapes_allowed,
+										bool ignore_case,
                                         char *errbuf,
                                         size_t errbuf_size)
 {
@@ -707,11 +729,15 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 	// special cases at the beginning
 	if (*cp == '^') {
 		bracket_expr->complemented = true;
-		++cp;
+		fprintf(stderr, "expression is complemented\n");
+		cp++;
 	}
+
 	if (*cp == '-') {
 		// '-' as first character is taken literally
-		range_item_push(bracket_expr, L'-', L'-');
+		fprintf(stderr, "0. push L'%c' - L'%c'\n", L'-', L'-');
+		if (! push_range_item(bracket_expr, ignore_case, L'-', L'-', errbuf, errbuf_size))
+			goto fail;
 		cp++;
 	}
 
@@ -737,15 +763,30 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 					snprintf(errbuf, errbuf_size, "invalid range L'%lc'-L'%lc'", first_wc, second_wc);
 					return NULL;
 			}
-			push_range_item(bracket_expr, first_wc, second_wc);
+			fprintf(stderr, "1. push L'%c' - L'%c'\n", first_wc, second_wc);
+			if (! push_range_item(bracket_expr, ignore_case, first_wc, second_wc, errbuf, errbuf_size))
+				goto fail;
+
+			cp--;	// compensate for loop
 			continue;
 		}
-		@<push @code{first_wc} onto wide character list@>
+		// push first_wc onto wide character list
+		if (! push_wc(first_wc, errbuf, errbuf_size))
+			goto fail;
+
+		cp--;	// compensate for loop
 	}
 
 	@<sort wide character list@>
 	@<condense wide character list into @code{RANGE_ITEM}s@>
 	@<condense final array of @code{set_item}s@>
+
+	if (*cp != ']') {
+		snprintf(errbuf, errbuf_size, "no closing bracket");
+		goto fail;
+	}
+
+	*endp = (char *) ++cp;
 
 	return bracket_expr;
 
@@ -766,8 +807,8 @@ check for errors, and @code{memset()} to zero:
 @<allocate @code{bracket_expr}@>=
 BRACKET_EXPR *bracket_expr = (BRACKET_EXPR *) malloc(sizeof(BRACKET_EXPR));
 if (bracket_expr == NULL) {
-		snprintf(errbuf, errbuf_size, "out of memory for expr");
-		return NULL;
+	snprintf(errbuf, errbuf_size, "out of memory for expr");
+	return NULL;
 }
 memset(bracket_expr, 0, sizeof(BRACKET_EXPR));
 @
@@ -776,8 +817,8 @@ memset(bracket_expr, 0, sizeof(BRACKET_EXPR));
 #define INITIAL_SIZE 10
 bracket_expr->items = (set_item *) malloc(INITIAL_SIZE * sizeof(set_item));
 if (bracket_expr->items == NULL) {
-		snprintf(errbuf, errbuf_size, "out of memory for items");
-		goto fail;
+	snprintf(errbuf, errbuf_size, "out of memory for items");
+	goto fail;
 }
 memset(bracket_expr->items, 0, INITIAL_SIZE * sizeof(set_item));
 bracket_expr->allocated = INITIAL_SIZE;
@@ -790,19 +831,20 @@ regular characters and with simple ranges.
 
 We can have all kinds of weird cases, such as @code{[abcdapfedr-sz]}.
 If this is reduced to the minimum, it becomes @code{[a-fpr-sz]}. We
-need to be able to organized the (wide) characters such that we can
+need to be able to organize the (wide) characters such that we can
 condense them down to this minimum sort of list.  To do that, we
-will create a simple array of wide characters that we fill
+create a simple array of wide characters that we fill
 one by one. In this case, the initial contents would be
 @code{abcdapfedz}. The range @code{r-s} is added directly
 to @code{bracket_expr->items} and is dealt with later.
 
 Once the array of wide characters is built, we next sort it,
 attaining @code{aabcdefpz}. It can be uniqued and turned
-into one or more ranges in the final step, yielding @code{a-fpz}.
+into one or more ranges in the final step, yielding
+first @code{abcdefpz} and finally @code{a-fpz}.
 
 The range items will then be: @code{r-s}, @code{a-f}, @code{p-p} and
-@code{z-z}. Another sort pass yields @code{a-f}, @code{p-p},
+@code{z-z}. Another sorting pass yields @code{a-f}, @code{p-p},
 @code{r-s} and @code{z-z}.
 
 First, we need some global data:
@@ -812,6 +854,9 @@ static wint_t *wide_chars = NULL;
 static size_t wc_allocated = 0;
 static size_t wc_inuse = 0;
 @
+
+Next, we need to allocate memory for the
+array of wide characters, and initialize the memory.
 
 @<allocate initial data@>=
 @<allocate wide character array@>
@@ -826,6 +871,7 @@ if (wide_chars == NULL) {	// first time through
 	}
 	wc_allocated = INITIAL_SIZE;
 }
+// always zero out the array, as we may have to make many BRACKET_EXPRs
 memset(wide_chars, 0, wc_allocated * sizeof(wint_t));
 wc_inuse = 0;
 @
@@ -841,22 +887,52 @@ bool push_wc(wint_t wc, char *errbuf, size_t errbuf_size)
 	if (wc_inuse + 1 >= wc_allocated) {
 		int new_amount = wc_allocated * 2;
 		wint_t *new_data = (wint_t *) realloc(wide_chars, new_amount * sizeof(wint_t));
+
 		if (new_data == NULL) {
 			snprintf(errbuf, errbuf_size, "out of memory for more wide characters");
 			return false;
 		}
+		memset(new_data + wc_allocated, 0, wc_allocated * sizeof(wint_t));
 		wc_allocated = new_amount;
 		wide_chars = new_data;
 	}
-	wide_chars[++wc_inuse] = wc;
+	wide_chars[wc_inuse++] = wc;
 	return true;
 }
 @
 
-Sorting the list is easy:
+We have to pull the wide characters out of the initial string:
+
+@<get first wide character@>=
+mbstate_t mbs;
+memset(& mbs, 0, sizeof(mbs));
+size_t count;
+const size_t mb_cur_max = MB_CUR_MAX;
+
+count = mbrtowc(& first_wc, cp, mb_cur_max, & mbs);
+if (count == (size_t) -1 || count == (size_t) -2) {
+	snprintf(errbuf, errbuf_size, "invalid multibyte sequence");
+	goto fail;
+}
+cp += count;
+@
+
+@<get second wide character@>=
+count = mbrtowc(& second_wc, cp, mb_cur_max, & mbs);
+if (count == (size_t) -1 || count == (size_t) -2) {
+	snprintf(errbuf, errbuf_size, "invalid multibyte sequence");
+	goto fail;
+}
+cp += count;
+@
+
+Once we have the list of wide characters, sorting it is easy:
 
 @<sort wide character list@>=
+wide_chars[wc_inuse] = 0;
+fprintf(stderr, "before sort %ls\n", wide_chars);
 qsort(wide_chars, wc_inuse, sizeof(wint_t), wint_compare);
+fprintf(stderr, "after sort %ls\n", wide_chars);
 @
 
 @noindent
@@ -887,15 +963,24 @@ expressions, there shouldn't be any problem.
 @<remove duplicate wide characters@>=
 size_t i, j;
 for (i = 0, j = 1; j < wc_inuse; i++, j++) {
+	fprintf(stderr, "(%ld, %ld) comparing %lc to %lc\n", i, j, wide_chars[i], wide_chars[j]);
 	if (wide_chars[i] == wide_chars[j]) {
-		memmove(wide_chars + j, wide_chars + j + 1, (wc_inuse - (j + 1) * sizeof(wint_t)));
+		for (int k = j + 1; k < wc_inuse; j++, k++) {
+			wide_chars[j] = wide_chars[k];
+		}
+		wide_chars[j] = 0;
+
 		wc_inuse--;
-		i--;
-		j--;
+		j = i + 1;
+		fprintf(stderr, "after shift %ls\n", wide_chars);
 	}
 }
 wide_chars[wc_inuse] = 0;	// not strictly necessary, but doesn't hurt
+fprintf(stderr, "wide-str: %ls, len = %ld, wc_inuse = %ld\n", wide_chars, wcslen(wide_chars), wc_inuse);
 @
+
+Once we have a sorted and uniqued list of wide characters,
+generating the correct ranges is relatively easy.
 
 @<generate @code{RANGE_ITEM}s@>=
 size_t range_start, total;
@@ -903,46 +988,176 @@ range_start = total = 0;
 for (i = 0, j = 1; j < wc_inuse; i++, j++) {
 	if (wide_chars[j] == wide_chars[i] + 1) {	// ab...
 		continue;
-	} else if (j + 1 < wc_inuse && wide_chars[j+1] == wide_chars[j] + 1) {
+	} else if (wide_chars[j] > wide_chars[i] + 1) {
 		// acd...
 		// push a and start next range at c
-		push_range_item(bracket_expr, wide_chars[range_start], wide_chars[range_start]);
+		if (! push_range_item(bracket_expr, ignore_case, wide_chars[range_start], wide_chars[i], errbuf, errbuf_size))
+			goto fail;
 		// debug:
-		fprintf(stderr, "1. push L'%lc' - L'%lc'\n", wide_chars[range_start], wide_chars[range_start]);
+		fprintf(stderr, "2. push L'%c' - L'%c'\n", wide_chars[range_start], wide_chars[i]);
 		total++;
 		range_start = j;
-	} else if (j + 1 < wc_inuse && wide_chars[j+1] > wide_chars[j] + 1) {		// abcq...
-		push_range_item(bracket_expr, wide_chars[range_start], wide_chars[j]);
-		total++;
-		fprintf(stderr, "2. push L'%lc' - L'%lc'\n", wide_chars[range_start], wide_chars[j]);
-		range_start = j + 1;
-		i = j;	// will be incremented
-		j++;	// will be incremented
 	}
 }
-if (range_start <= wc_inuse - 1) {
-	push_range_item(bracket_expr, wide_chars[range_start], wide_chars[wc_inuse]);
+// Get any final range or character
+if (wc_inuse > 0 && range_start <= wc_inuse - 1) {
+	if (! push_range_item(bracket_expr, ignore_case, wide_chars[range_start], wide_chars[wc_inuse-1], errbuf, errbuf_size))
+			goto fail;
 	total++;
-	fprintf(stderr, "3. push L'%lc' - L'%lc'\n", wide_chars[range_start], wide_chars[wc_inuse]);
+	fprintf(stderr, "3. push L'%c' - L'%c'\n", wide_chars[range_start], wide_chars[wc_inuse-1]);
 }
 wc_inuse = total;
 @
 
-@<get first wide character@>=
-/* [:...:] not implemented yet */
+Pushing a range item is straightforward, similar to @code{push_wc()}
+earlier.  There is one wrinkle, which is if we're ignoring case,
+we have to allow both the uppercase and the lowercase version of each
+character.
+
+@<helper functions@>=
+/* push_range_item --- add a range item to the expression */
+
+static bool
+push_range_item(BRACKET_EXPR *bracket_expr, bool ignore_case,
+				wint_t first, wint_t last,
+				char *errbuf, size_t errbuf_size)
+{
+	@<grow the set of items if necessary@>
+	set_item new_item;
+	new_item.item_type = RANGE_ITEM;
+	if (ignore_case) {
+		new_item.start = towupper(first);
+		new_item.end = towupper(last);
+		bracket_expr->items[bracket_expr->nelems++] = new_item;
+
+		new_item.start = towlower(first);
+		new_item.end = towlower(last);
+		bracket_expr->items[bracket_expr->nelems++] = new_item;
+	} else {
+		new_item.start = first;
+		new_item.end = last;
+		bracket_expr->items[bracket_expr->nelems++] = new_item;
+	}
+
+	return true;
+}
 @
 
-@<get second wide character@>=
-/* [:...:] not implemented yet */
+The logic for growing the set will be needed also when we
+add @code{CTIME_ITEM}s, so let's factor it out:
+
+@<grow the set of items if necessary@>=
+if (bracket_expr->nelems + 1 >= bracket_expr->allocated) {
+	size_t old_amount = bracket_expr->allocated;
+	size_t new_amount = bracket_expr->allocated * 2;
+	set_item *new_set = (set_item *) realloc(bracket_expr->items, new_amount * sizeof(set_item));
+	if (new_set == NULL) {
+		snprintf(errbuf, errbuf_size, "no memory for more set items");
+		return false;
+	}
+	memset(new_set + old_amount, 0, old_amount * sizeof(set_item));
+	bracket_expr->allocated = new_amount;
+	bracket_expr->items = new_set;
+}
+@
+
+And, let's just get pushing a @code{CTYPE_ITEM} out of the way:
+
+@<helper functions@>=
+/* push_ctype_item --- add a ctype item to the expression */
+
+static bool
+push_ctype_item(BRACKET_EXPR *bracket_expr, bool ignore_case,
+				int (*funcp)(wint_t),
+				char *errbuf, size_t errbuf_size)
+{
+	@<grow the set of items if necessary@>
+	set_item new_item;
+	new_item.item_type = CTYPE_ITEM;
+	if (ignore_case && (funcp == iswupper || funcp == iswlower)) {
+		new_item.iswXXX = iswupper;
+		bracket_expr->items[bracket_expr->nelems++] = new_item;
+
+		new_item.iswXXX = iswlower;
+		bracket_expr->items[bracket_expr->nelems++] = new_item;
+	} else {
+		new_item.iswXXX = funcp;
+		bracket_expr->items[bracket_expr->nelems++] = new_item;
+	}
+
+	return true;
+}
 @
 
 @<condense final array of @code{set_item}s@>=
-/* */
+// sort it
+qsort(bracket_expr->items, bracket_expr->nelems, sizeof(set_item), item_compare_for_sorting);
+
+// condense it
+items = bracket_expr->items;
+for (i = 0, j = 1; j < bracket_expr->nelems; i++, j++) {
+	if (   items[i].item_type == CTYPE_ITEM
+		&& items[j].item_type == CTYPE_ITEM
+		&& items[i].iswXXX == items[j].iswXXX) {
+		@<shift @code{items} down by one@>
+	} else if (items[i].item_type != items[j].item_type) {
+		continue;
+	} else {
+		if (items[i].start == items[j].start && items[i].end == items[j].end) {
+			@<shift @code{items} down by one@>
+		}
+	}
+}
 @
 
-@<push @code{first_wc} onto wide character list@>=
-/* */
+@<shift @code{items} down by one@>=
+for (int k = j + 1; k < bracket_expr->nelems; j++, k++)
+	items[j] = items[k];
+
+bracket_expr->nelems--;
+j = i + 1;
 @
+
+@ignore
+Possible cases for ranges:
+
+1. Duplicate:
+
+	+---+---+
+	| a | d |		 +---+---+
+	+---+---+	==>  | a | d |
+	| a | d |		 +---+---+
+	+---+---+
+
+2. Adjacent:
+
+	+---+---+
+	| a | d |				 +---+---+
+	+---+---+---+----	==>  | a | h |
+			| e | h |		 +---+---+
+			+---+---+
+
+3. Completely overlapping:
+
+	+----------+
+	| abcdefhi |		  +---+---+
+	+----------+	===>  | a | i |
+	|    def   |		  +---+---+
+	+----------+
+
+4. Partially overlapping on the left:
+
+	+----------+
+	| abcdef   |		 +---+---+
+	+----------+	===> | a | h |
+	|    defgh |		 +---+---+
+	+----------+
+
+Since ranges are sorted by start, we won't
+have overlapping on the right.
+
+
+@end ignore
 
 @<process @code{[:...:]} items@>=
 /* [:...:] not implemented yet */
@@ -954,6 +1169,40 @@ wc_inuse = total;
 
 @<process @code{[.X.]} items@>=
 /* [.X.] not implemented yet */
+@
+
+@node
+@chapter A Test Program
+
+Let's test it out.
+
+@(testit.c@)=
+#include <stdio.h>
+
+#include "bracketexpr.h"
+
+int
+main(int argc, char **argv)
+{
+	char errbuf[BUFSIZ];
+
+	for (int i = 1; i < argc; i++) {
+		char *end;
+		const BRACKET_EXPR *expr = bracket_expr_create(argv[i], & end, true, false,
+												errbuf, sizeof(errbuf));
+
+		if (expr == NULL) {
+			fprintf(stderr, "%s: error: %s\n", argv[i], errbuf);
+			continue;
+		}
+
+		printf("%s ->\n", argv[i]);
+		bracket_expr_dump(expr, stdout);
+		bracket_expr_free(expr);
+	}
+
+	return 0;
+}
 @
 
 @node Checking @code{bsearch()}
@@ -1046,9 +1295,6 @@ and the code chunk references.
 @appendixsec Code Chunk References
 
 @print_code_refs
-
-@node Bibliography
-@unnumbered Bibliography
 
 @node Concept Index
 @unnumbered Index

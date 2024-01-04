@@ -1,3 +1,11 @@
+2024-01-04         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* jrweave: Small improvement.
+	* setserch.twjr (bracket_expr_create): More progress. Lots
+	of debugging.
+	(bracket_expr_dump): Print out `complemented = true' if it's so.
+	(testit.c): Very simple test program. Needs fancying up some.
+
 2024-01-02         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* jrweave: Small improvement.
