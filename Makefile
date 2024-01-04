@@ -20,7 +20,17 @@ $(PDF): $(DOC) texinfo.tex
 $(DOC): $(TWJRSOURCE)
 	./jrweave $(TWJRSOURCE) > $(DOC)
 
-$(OBJ) testit1.o testit2.o: $(SOURCE)
+$(OBJ): $(SOURCE)
+
+testit1.o: testit1.c
+
+testit2.o: testit2.c
+
+testit1.c: $(TWJRSOURCE)
+	./jrtangle $(TWJRSOURCE)
+
+testit2.c: $(TWJRSOURCE)
+	./jrtangle $(TWJRSOURCE)
 
 testit1: $(OBJ) testit1.o
 	gcc $(OBJ) testit1.o -o testit1
