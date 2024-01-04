@@ -1,5 +1,13 @@
 2024-01-04         Arnold D. Robbins     <arnold@skeeve.com>
 
+	* setserch.twjr (bracket_expr_create): Finish it off!
+	Commented out debug prints. Need to remove them eventually.
+	(testit1.c): Renamed from testit.c.
+	(testit2.c): New program.
+	* Makefile: Revised for new test programs.
+
+2024-01-04         Arnold D. Robbins     <arnold@skeeve.com>
+
 	* jrweave: Small improvement.
 	* setserch.twjr (bracket_expr_create): More progress. Lots
 	of debugging.

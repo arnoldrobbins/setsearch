@@ -6,13 +6,13 @@ TWJRSOURCE = setsearch.twjr
 
 SOURCE = bracketexpr.h bracketexpr.c
 
-OBJ = bracketexpr.o testit.o
+OBJ = bracketexpr.o
 
 DOC = setsearch.texi
 
 PDF = setsearch.pdf
 
-all: $(PDF) testit
+all: $(PDF) testit1 testit2
 
 $(PDF): $(DOC) texinfo.tex
 	texi2pdf $(DOC)
@@ -20,13 +20,16 @@ $(PDF): $(DOC) texinfo.tex
 $(DOC): $(TWJRSOURCE)
 	./jrweave $(TWJRSOURCE) > $(DOC)
 
-$(OBJ): $(SOURCE)
+$(OBJ) testit1.o testit2.o: $(SOURCE)
 
-testit: $(OBJ)
-	gcc $(OBJ) -o testit
+testit1: $(OBJ) testit1.o
+	gcc $(OBJ) testit1.o -o testit1
+
+testit2: $(OBJ) testit2.o
+	gcc $(OBJ) testit2.o -o testit2
 
 $(SOURCE): $(TWJRSOURCE)
 	./jrtangle $(TWJRSOURCE)
 
 clean:
-	rm -f *.[cho] setsearch.?? setsearch.??? setsearch.texi testit
+	rm -f *.[cho] setsearch.?? setsearch.??? setsearch.texi testit[12]
