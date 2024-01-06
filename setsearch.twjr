@@ -1065,7 +1065,7 @@ push_range_item(BRACKET_EXPR *bracket_expr, bool ignore_case,
 @
 
 The logic for growing the set will be needed also when we
-add @code{CTIME_ITEM}s, so we factor it out:
+add @code{CTYPE_ITEM}s, so we factor it out:
 
 @<grow the set of items if necessary@>=
 if (bracket_expr->nelems + 1 >= bracket_expr->allocated) {
