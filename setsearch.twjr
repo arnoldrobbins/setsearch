@@ -763,7 +763,6 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 					snprintf(errbuf, errbuf_size, "invalid range L'%lc'-L'%lc'", first_wc, second_wc);
 					return NULL;
 			}
-			// fprintf(stderr, "1. push L'%c' - L'%c'\n", first_wc, second_wc);
 			if (! push_range_item(bracket_expr, ignore_case, first_wc, second_wc, errbuf, errbuf_size))
 				goto fail;
 
@@ -803,13 +802,11 @@ it. To get a literal @samp{-}, it can be the first character in the expressions.
 // special cases at the beginning
 if (*cp == '^') {
 	bracket_expr->complemented = true;
-	// fprintf(stderr, "expression is complemented\n");
 	cp++;
 }
 
 if (*cp == '-') {
 	// '-' as first character is taken literally
-	// fprintf(stderr, "0. push L'%c' - L'%c'\n", L'-', L'-');
 	if (! push_range_item(bracket_expr, ignore_case, L'-', L'-', errbuf, errbuf_size))
 		goto fail;
 	cp++;
@@ -957,10 +954,7 @@ cp += count;
 Once we have the list of wide characters, sorting it is easy:
 
 @<sort wide character list@>=
-// wide_chars[wc_inuse] = 0;
-// fprintf(stderr, "before sort %ls\n", wide_chars);
 qsort(wide_chars, wc_inuse, sizeof(wint_t), wint_compare);
-// fprintf(stderr, "after sort %ls\n", wide_chars);
 @
 
 @noindent
@@ -994,7 +988,6 @@ expressions, there shouldn't be any problem.
 @<remove duplicate wide characters@>=
 size_t i, j;
 for (i = 0, j = 1; j < wc_inuse; i++, j++) {
-	// fprintf(stderr, "(%ld, %ld) comparing %lc to %lc\n", i, j, wide_chars[i], wide_chars[j]);
 	if (wide_chars[i] == wide_chars[j]) {
 		for (int k = j + 1; k < wc_inuse; j++, k++) {
 			wide_chars[j] = wide_chars[k];
@@ -1003,11 +996,9 @@ for (i = 0, j = 1; j < wc_inuse; i++, j++) {
 
 		wc_inuse--;
 		j = i + 1;
-		// fprintf(stderr, "after shift %ls\n", wide_chars);
 	}
 }
 wide_chars[wc_inuse] = 0;	// not strictly necessary, but doesn't hurt
-// fprintf(stderr, "wide-str: %ls, len = %ld, wc_inuse = %ld\n", wide_chars, wcslen(wide_chars), wc_inuse);
 @
 
 Once we have a sorted and uniqued list of wide characters,
@@ -1025,8 +1016,6 @@ for (i = 0, j = 1; j < wc_inuse; i++, j++) {
 		if (! push_range_item(bracket_expr, ignore_case,
 				wide_chars[range_start], wide_chars[i], errbuf, errbuf_size))
 			goto fail;
-		// debug:
-		// fprintf(stderr, "2. push L'%c' - L'%c'\n", wide_chars[range_start], wide_chars[i]);
 		total++;
 		range_start = j;
 	}
@@ -1037,7 +1026,6 @@ if (wc_inuse > 0 && range_start <= wc_inuse - 1) {
 				wide_chars[range_start], wide_chars[wc_inuse-1], errbuf, errbuf_size))
 			goto fail;
 	total++;
-	// fprintf(stderr, "3. push L'%c' - L'%c'\n", wide_chars[range_start], wide_chars[wc_inuse-1]);
 }
 wc_inuse = total;
 @
@@ -1109,7 +1097,7 @@ for (i = 0, j = 1; j < bracket_expr->nelems; i++, j++) {
 		@<shift @code{items} down by one@>
 	} else if (items[i].item_type != items[j].item_type) {
 		continue;
-	} else {
+	} else if (items[i].item_type == RANGE_ITEM) {
 		@<condense overlapping ranges@>
 	}
 }
@@ -1214,7 +1202,7 @@ for (int k = j + 1; k < bracket_expr->nelems; j++, k++)
 
 bracket_expr->nelems--;
 i--;	// compensate for loop, continue checking at current position
-j--;
+j = i + 1;
 @
 
 @node ctype items
@@ -1232,7 +1220,6 @@ if (cp + 2 < last && cp[0] == '[' && cp[1] == ':') {
 	if (fp == NULL)
 		goto fail;
 
-	// fprintf(stderr, "A. push ctype item %.*s\n", (int) count, cp);
 	cp += count;
 	if (! push_ctype_item(bracket_expr, ignore_case,
 			fp, errbuf, errbuf_size))
