@@ -1107,7 +1107,7 @@ There are multiple possibilities for
 overlapping ranges. For example, there's nothing stopping
 someone from writing @code{[a-q12c-h]}, or @code{[bca123a-c]} or
 almost anything else.  After sorting the various ranges, we
-end up with the following possiblities:
+end up with the following possibilities:
 
 @itemize @bullet
 @item
@@ -1125,7 +1125,7 @@ Exact duplicate ranges:
 The duplicate should be removed.
 
 @item
-Adjancent ranges.
+Adjacent ranges.
 
 @example
 +---+---+
