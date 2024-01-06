@@ -2,6 +2,7 @@
 
 	* setserch.twjr (bracket_expr_create): Bug fixing and remove debug
 	prints.
+	(btest.c): Better test program.
 
 2024-01-04         Arnold D. Robbins     <arnold@skeeve.com>
 

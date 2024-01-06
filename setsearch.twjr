@@ -740,6 +740,8 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 
 	@<special cases at the beginning@>
 
+	const size_t mb_cur_max = MB_CUR_MAX;
+
 	// main loop:
 	for (; cp < last && *cp != ']'; cp++) {
 		if (*cp == '\\' && escapes_allowed) {
@@ -930,9 +932,9 @@ If we don't see a @samp{-}, there's no range, and only
 
 @<get first wide character@>=
 mbstate_t mbs;
-memset(& mbs, 0, sizeof(mbs));
 size_t count;
-const size_t mb_cur_max = MB_CUR_MAX;
+
+memset(& mbs, 0, sizeof(mbs));
 
 count = mbrtowc(& first_wc, cp, mb_cur_max, & mbs);
 if (count == (size_t) -1 || count == (size_t) -2) {
@@ -1364,6 +1366,135 @@ main(int argc, char **argv)
 	bracket_expr_free(expr);
 
 	return 0;
+}
+@
+
+@(btest.c@)=
+@<Copyright statement@>
+
+/* btest.c --- a test program for bracket_expr_create */
+
+@<main includes@>
+
+@<usage function@>
+
+int
+main(int argc, char **argv)
+{
+	int i, c;
+	wint_t wc;
+	char *cp;
+	bool expect_success = false, expect_failure = false;
+	bool escapes_allowed = false, ignore_case = false;
+	bool dump_data = false;
+
+	@<parse command line arguments@>
+	@<compile the expression@>
+	@<test each wide character in the test case against the expression@>
+
+	return EXIT_SUCCESS;
+}
+@
+
+@<main includes@>=
+@<includes@>
+#include <getopt.h>
+#include "bracketexpr.h"
+@
+
+@<parse command line arguments@>=
+while ((c = getopt(argc, argv, "SFdei")) != -1) {
+	switch (c) {
+	case 'S':
+		expect_success = true;
+		break;
+	case 'F':
+		expect_failure = true;
+		break;
+	case 'd':
+		dump_data = true;
+		break;
+	case 'e':
+		escapes_allowed = true;
+		break;
+	case 'i':
+		ignore_case = true;
+		break;
+	case '?':
+		usage(argv[0]);
+		break;
+	}
+}
+
+if (   (! expect_success && ! expect_failure)
+    || (expect_success && expect_failure)) {
+	fprintf(stderr, "Only one of -S or -F must be given\n");
+	usage(argv[0]);
+}
+else if (optind + 2 > argc)	// no expr or no string provided
+	usage(argv[0]);
+@
+
+@<usage function@>=
+/* usage --- print a usage message and die */
+
+static void
+usage(const char *name)
+{
+	fprintf(stderr, "Usage: %s -S|-F [-dei] '[bracket-expression]' '<string of characters>'\n",
+			name);
+	fprintf(stderr, "\t-S\tExpect match success.\n");
+	fprintf(stderr, "\t-F\tExpect failure of some kind.\n");
+	fprintf(stderr, "\t-d\tDump the data structure.\n");
+	fprintf(stderr, "\t-e\tEscapes are allowed.\n");
+	fprintf(stderr, "\t-i\tIgnore case.\n");
+	exit(EXIT_FAILURE);
+}
+@
+
+@<compile the expression@>=
+char errbuf[BUFSIZ];
+size_t errbuf_size = sizeof(errbuf);
+const BRACKET_EXPR *bracket_expr;
+char *end;
+bracket_expr = bracket_expr_create(argv[optind], & end, escapes_allowed,
+				ignore_case, errbuf, errbuf_size);
+if (bracket_expr == NULL && expect_success) {
+	fprintf(stderr, "bad expression: %s\n", errbuf);
+	@<dump the data if needed@>
+	exit(EXIT_FAILURE);
+}
+@
+
+@<dump the data if needed@>=
+if (dump_data)
+	bracket_expr_dump(bracket_expr, stdout);
+@
+
+@<test each wide character in the test case against the expression@>=
+mbstate_t mbs;
+memset(& mbs, 0, sizeof(mbs));
+for (cp = argv[optind] + 1; *cp != '\0'; cp++) {
+	size_t count;
+
+	count = mbrtowc(& wc, cp, MB_CUR_MAX, & mbs);
+	if (count == (size_t) -1 || count == (size_t) -2) {
+		if (expect_success) {
+			fprintf(stderr, "invalid multibyte sequence detected\n");
+			@<dump the data if needed@>
+			exit(EXIT_FAILURE);
+		} else {
+			cp++;	// skip over it and hope;
+			continue;
+		}
+	}
+
+	bool matched = bracket_expr_match(bracket_expr, wc);
+	if (! matched && expect_success) {
+		fprintf(stderr, "failed to match L'%lc'\n", wc);
+		@<dump the data if needed@>
+		exit(EXIT_FAILURE);
+	}
 }
 @
 
