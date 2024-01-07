@@ -1389,6 +1389,7 @@ main(int argc, char **argv)
 	bool dump_data = false;
 
 	@<parse command line arguments@>
+	setlocale(LC_ALL, "");
 	@<compile the expression@>
 	@<test each wide character in the test case against the expression@>
 
@@ -1399,6 +1400,7 @@ main(int argc, char **argv)
 @<main includes@>=
 @<includes@>
 #include <getopt.h>
+#include <locale.h>
 #include "bracketexpr.h"
 @
 
@@ -1474,7 +1476,7 @@ if (dump_data)
 @<test each wide character in the test case against the expression@>=
 mbstate_t mbs;
 memset(& mbs, 0, sizeof(mbs));
-for (cp = argv[optind] + 1; *cp != '\0'; cp++) {
+for (cp = argv[optind + 1]; *cp != '\0';) {
 	size_t count;
 
 	count = mbrtowc(& wc, cp, MB_CUR_MAX, & mbs);
@@ -1487,11 +1489,16 @@ for (cp = argv[optind] + 1; *cp != '\0'; cp++) {
 			cp++;	// skip over it and hope;
 			continue;
 		}
-	}
+	} else
+		cp += count;
 
 	bool matched = bracket_expr_match(bracket_expr, wc);
 	if (! matched && expect_success) {
-		fprintf(stderr, "failed to match L'%lc'\n", wc);
+		fprintf(stderr, "failed to match L'%lc', success expected.\n", wc);
+		@<dump the data if needed@>
+		exit(EXIT_FAILURE);
+	} else if (matched && expect_failure) {
+		fprintf(stderr, "succeeded to match L'%lc', failure expected.\n", wc);
 		@<dump the data if needed@>
 		exit(EXIT_FAILURE);
 	}
