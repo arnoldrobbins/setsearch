@@ -2,6 +2,10 @@
 
 	* setserch.twjr (btest.c): Bug fixing. Now working on multibyte
 	characters.
+	(btest.c): More bug fixing.
+	(testit1.c): Removed.
+	(testit2.c): Removed.
+	* Makefile: Updated.
 
 2024-01-06         Arnold D. Robbins     <arnold@skeeve.com>
 

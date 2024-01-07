@@ -12,7 +12,7 @@ DOC = setsearch.texi
 
 PDF = setsearch.pdf
 
-all: $(PDF) testit1 testit2
+all: $(PDF) btest
 
 $(PDF): $(DOC) texinfo.tex
 	texi2pdf $(DOC)
@@ -22,21 +22,13 @@ $(DOC): $(TWJRSOURCE)
 
 $(OBJ): $(SOURCE)
 
-testit1.o: testit1.c
+btest.o: btest.c
 
-testit2.o: testit2.c
-
-testit1.c: $(TWJRSOURCE)
+btest.c: $(TWJRSOURCE)
 	./jrtangle $(TWJRSOURCE)
 
-testit2.c: $(TWJRSOURCE)
-	./jrtangle $(TWJRSOURCE)
-
-testit1: $(OBJ) testit1.o
-	gcc $(OBJ) testit1.o -o testit1
-
-testit2: $(OBJ) testit2.o
-	gcc $(OBJ) testit2.o -o testit2
+btest: $(OBJ) btest.o
+	gcc $(OBJ) btest.o -o btest
 
 $(SOURCE): $(TWJRSOURCE)
 	./jrtangle $(TWJRSOURCE)

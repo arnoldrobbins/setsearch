@@ -1302,81 +1302,36 @@ push_ctype_item(BRACKET_EXPR *bracket_expr, bool ignore_case,
 @node
 @chapter A Test Program
 
-Let's test it out.
+The test program builds a set and then compares one or more characters
+against the set.  It takes several options:
 
-@(testit1.c@)=
-#include <stdio.h>
+@table @option
+@item -F
+Expect failure. Mutually exclusive with @option{-S}.
 
-#include "bracketexpr.h"
+@item -S
+Expect success. Mutually exclusive with @option{-F}.
 
-int
-main(int argc, char **argv)
-{
-	char errbuf[BUFSIZ];
+@item -d
+Dump the data structure if the result isn't what's expected.
 
-	for (int i = 1; i < argc; i++) {
-		char *end;
-		const BRACKET_EXPR *expr = bracket_expr_create(argv[i], & end, true, false,
-												errbuf, sizeof(errbuf));
+@item -e
+Escapes are allowed. By default they are not.
 
-		if (expr == NULL) {
-			fprintf(stderr, "%s: error: %s\n", argv[i], errbuf);
-			continue;
-		}
-
-		printf("%s ->\n", argv[i]);
-		bracket_expr_dump(expr, stdout);
-		bracket_expr_free(expr);
-	}
-
-	return 0;
-}
-@
-
-@(testit2.c@)=
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "bracketexpr.h"
-
-int
-main(int argc, char **argv)
-{
-	char errbuf[BUFSIZ];
-
-	if (argc != 3) {
-		fprintf(stderr, "usage: %s '[....]' '<char>'\n", argv[0]);
-		exit(1);
-	}
-
-	char *end;
-	const BRACKET_EXPR *expr = bracket_expr_create(argv[1], & end, true, false,
-											errbuf, sizeof(errbuf));
-
-	if (expr == NULL) {
-		fprintf(stderr, "%s: error: %s\n", argv[1], errbuf);
-		exit(1);
-	}
-
-	printf("match(%s, %c) ->\n", argv[1], argv[2][0]);
-	bracket_expr_dump(expr, stdout);
-	printf("\tmatch = %s\n", bracket_expr_match(expr, argv[2][0])
-														? "true"
-														: "false");
-	bracket_expr_free(expr);
-
-	return 0;
-}
-@
+@item -i
+Ignore case when matching.
+@end table
 
 @(btest.c@)=
-@<Copyright statement@>
-
 /* btest.c --- a test program for bracket_expr_create */
+
+@<Copyright statement@>
 
 @<main includes@>
 
 @<usage function@>
+
+/* main --- parse arguments, run the test */
 
 int
 main(int argc, char **argv)
@@ -1463,14 +1418,9 @@ bracket_expr = bracket_expr_create(argv[optind], & end, escapes_allowed,
 				ignore_case, errbuf, errbuf_size);
 if (bracket_expr == NULL && expect_success) {
 	fprintf(stderr, "bad expression: %s\n", errbuf);
-	@<dump the data if needed@>
+	// can't dump the data, return was NULL
 	exit(EXIT_FAILURE);
 }
-@
-
-@<dump the data if needed@>=
-if (dump_data)
-	bracket_expr_dump(bracket_expr, stdout);
 @
 
 @<test each wide character in the test case against the expression@>=
@@ -1487,6 +1437,7 @@ for (cp = argv[optind + 1]; *cp != '\0';) {
 			exit(EXIT_FAILURE);
 		} else {
 			cp++;	// skip over it and hope;
+			memset(& mbs, 0, sizeof(mbs));	// reset the state
 			continue;
 		}
 	} else
@@ -1494,15 +1445,20 @@ for (cp = argv[optind + 1]; *cp != '\0';) {
 
 	bool matched = bracket_expr_match(bracket_expr, wc);
 	if (! matched && expect_success) {
-		fprintf(stderr, "failed to match L'%lc', success expected.\n", wc);
+		fprintf(stderr, "%s: failed to match L'%lc', success expected.\n", argv[optind], wc);
 		@<dump the data if needed@>
 		exit(EXIT_FAILURE);
 	} else if (matched && expect_failure) {
-		fprintf(stderr, "succeeded to match L'%lc', failure expected.\n", wc);
+		fprintf(stderr, "%s: succeeded to match L'%lc', failure expected.\n", argv[optind], wc);
 		@<dump the data if needed@>
 		exit(EXIT_FAILURE);
 	}
 }
+@
+
+@<dump the data if needed@>=
+if (dump_data)
+	bracket_expr_dump(bracket_expr, stdout);
 @
 
 @node Checking @code{bsearch()}
