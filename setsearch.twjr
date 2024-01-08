@@ -414,6 +414,7 @@ We include the standard header files that we'll need:
 #include <string.h>
 #include <wchar.h>
 #include <wctype.h>
+#include <locale.h>
 @
 
 @node The Data Structures
@@ -753,7 +754,7 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 		}
 
 		@<process @code{[:...:]} items@>
-		@<process @code{[=...=} items@>
+		@<process @code{[=...=]} items@>
 		@<process @code{[.X.]} items@>
 
 		wint_t first_wc, second_wc;
@@ -1291,12 +1292,81 @@ push_ctype_item(BRACKET_EXPR *bracket_expr, bool ignore_case,
 }
 @
 
-@<process @code{[=...=} items@>=
-/* [=...=] not implemented yet */
+@node Equivalence Classes and Collating Elements
+@section Handling Equivalence Classes and Collating Elements
+
+@<process @code{[=...=]} items@>=
+if (cp + 2 < last && cp[0] == '[' && cp[1] == '=') {
+	wint_t first_wc;
+	const char *begin = cp;
+
+	cp += 2;
+	@<get first wide character@>
+	if (*cp != '=' || cp[1] != ']') {
+		snprintf(errbuf, errbuf_size, "invalid equivalence class %.*s", (int) ((cp + 1) - begin), begin);
+		goto fail;
+	} else
+		cp += 1;	// loop will also increment it
+
+	if (! add_equivalent_characters(first_wc, errbuf, errbuf_size))
+		goto fail;
+
+	continue;
+}
 @
 
+Here is Mike's portable but ``sleazy'' (sic) way to add all
+the equivalent characters:
+
+@<helper functions@>=
+/* add_equivalent_characters --- do the work for [=X=] */
+
+static bool
+add_equivalent_characters(wint_t wc, char *errbuf, size_t errbuf_size)
+{
+	wchar_t wcs_in[2];
+	wchar_t wcs[2];
+	wchar_t abuf[100], wbuf[100];
+
+	wcs_in[0] = wc;
+	wcs_in[1] = 0;
+	wcsxfrm(abuf, wcs_in, 99);
+	wcs[1] = 0;
+	for (wchar_t u = 1; u < 0x110000; ++u) {
+		wcs[0] = u;
+		wcsxfrm(wbuf, wcs, 99);
+		if (abuf[0] == wbuf[0])
+			if (! push_wc(u, errbuf, errbuf_size))
+				return false;
+	}
+
+	return true;
+}
+@
+
+This is good for Unicode.  Eventually, we should figure out
+if we're in a Unicode locale and do something different if not.
+
+We allow single character collating elements:
+
 @<process @code{[.X.]} items@>=
-/* [.X.] not implemented yet */
+if (cp + 2 < last && cp[0] == '[' && cp[1] == '.') {
+	wint_t first_wc;
+	const char *begin = cp;
+
+	cp += 2;
+	@<get first wide character@>
+	if (*cp != '.' || cp[1] != ']') {
+		snprintf(errbuf, errbuf_size, "invalid collating element %.*s", (int) ((cp + 1) - begin), begin);
+		goto fail;
+	} else
+		cp += 1;	// loop will also increment it
+
+	if (! push_wc(first_wc, errbuf, errbuf_size))
+		goto fail;
+
+	continue;
+}
 @
 
 @node
@@ -1320,6 +1390,9 @@ Escapes are allowed. By default they are not.
 
 @item -i
 Ignore case when matching.
+
+@item -q
+Be quiet: don't print out what we're attempting match.
 @end table
 
 @(btest.c@)=
@@ -1341,7 +1414,7 @@ main(int argc, char **argv)
 	char *cp;
 	bool expect_success = false, expect_failure = false;
 	bool escapes_allowed = false, ignore_case = false;
-	bool dump_data = false;
+	bool dump_data = false, quiet = false;
 
 	@<parse command line arguments@>
 	setlocale(LC_ALL, "");
@@ -1355,12 +1428,11 @@ main(int argc, char **argv)
 @<main includes@>=
 @<includes@>
 #include <getopt.h>
-#include <locale.h>
 #include "bracketexpr.h"
 @
 
 @<parse command line arguments@>=
-while ((c = getopt(argc, argv, "SFdei")) != -1) {
+while ((c = getopt(argc, argv, "SFdeiq")) != -1) {
 	switch (c) {
 	case 'S':
 		expect_success = true;
@@ -1376,6 +1448,9 @@ while ((c = getopt(argc, argv, "SFdei")) != -1) {
 		break;
 	case 'i':
 		ignore_case = true;
+		break;
+	case 'q':
+		quiet = true;
 		break;
 	case '?':
 		usage(argv[0]);
@@ -1405,6 +1480,7 @@ usage(const char *name)
 	fprintf(stderr, "\t-d\tDump the data structure.\n");
 	fprintf(stderr, "\t-e\tEscapes are allowed.\n");
 	fprintf(stderr, "\t-i\tIgnore case.\n");
+	fprintf(stderr, "\t-q\tRun quietly.\n");
 	exit(EXIT_FAILURE);
 }
 @
@@ -1426,6 +1502,9 @@ if (bracket_expr == NULL && expect_success) {
 @<test each wide character in the test case against the expression@>=
 mbstate_t mbs;
 memset(& mbs, 0, sizeof(mbs));
+if (! quiet)
+	printf("%s: %s\n", argv[optind], argv[optind+1]);
+
 for (cp = argv[optind + 1]; *cp != '\0';) {
 	size_t count;
 
@@ -1452,6 +1531,8 @@ for (cp = argv[optind + 1]; *cp != '\0';) {
 		fprintf(stderr, "%s: succeeded to match L'%lc', failure expected.\n", argv[optind], wc);
 		@<dump the data if needed@>
 		exit(EXIT_FAILURE);
+	} else {
+		@<dump the data if needed@>
 	}
 }
 @
