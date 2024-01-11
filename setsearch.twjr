@@ -392,6 +392,8 @@ followed by the other things one might expect:
 
 @<data structures@>
 
+@<global data@>
+
 @<helper functions@>
 
 @<API functions@>
@@ -430,23 +432,33 @@ typedef struct set_item {
 		RANGE_ITEM,
 	} item_type;
 	union {
-		int (*iswXXX)(wint_t wc);
+		struct _ctype {
+			wctype_t    wtype;
+			const char *type_name;
+		} c;
 		struct _range {
 			int32_t start, end;
 		} r;
 	} u;
 } set_item;
-#define iswXXX	u.iswXXX
-#define start	u.r.start
-#define end		u.r.end
+#define wtype		u.c.wtype
+#define type_name	u.c.type_name
+#define start		u.r.start
+#define end			u.r.end
 @
 
-A @code{set_item} holds either a function pointer to a function
-such as @code{iswalpha()}, corresponding to the
-character class @code{[:alpha:]} within a bracket expression,
-or a range, such as @code{[a-z]}. Single characters that
+A @code{set_item} holds one of two things:
+
+@itemize @bullet
+@item Information needed for use with the @code{iswctype()} function.
+This consists of a value of type @code{wctype_t}, and a pointer to
+a string representing the ctype.
+
+@item A range, such as @code{[a-z]}.
+Single characters that
 aren't contiguous with others are placed in a range where
 @code{start} and @code{end} are set to the same value.
+@end itemize
 
 The full bracket expression holds a dynamically allocated
 array of @code{set_items}, plus what's needed for managing
@@ -494,6 +506,13 @@ bracket_expr_free(const BRACKET_EXPR *brack_expr)
 	if (brack_expr == NULL)
 		return false;
 
+	for (int i = 0; i < brack_expr->nelems; i++) {
+		if (brack_expr->items[i].item_type == CTYPE_ITEM)
+			free((void *) brack_expr->items[i].type_name);
+		else
+			break;
+	}
+
 	free((void *) brack_expr->items);
 	free((void *) brack_expr);
 
@@ -509,8 +528,6 @@ keep things simple. The @code{CTYPE_ITEM}s are checked first, since
 each one can match multiple characters with a single function call:
 
 @<helper functions@>=
-static set_item key;
-
 @<item comparison function@>
 
 /* is_found --- return true if the character is found */
@@ -522,13 +539,12 @@ is_found(const BRACKET_EXPR *brack_expr, int32_t the_char)
 	int i;
 
 	for (i = 0; i < brack_expr->nelems; i++) {
-		// linear search of ctype items, there can be
-		// no more than 12 of them.
+		// linear search of ctype items
 		if (set[i].item_type == RANGE_ITEM)
 			break;
 
 		assert(set[i].item_type == CTYPE_ITEM);
-		if (set[i].iswXXX(the_char))
+		if (iswctype(the_char, set[i].wtype))
 			return true;
 	}
 
@@ -539,6 +555,7 @@ is_found(const BRACKET_EXPR *brack_expr, int32_t the_char)
 
 	// binary search to see if we have it
 	set_item *found;
+	set_item key;
 	key.item_type = RANGE_ITEM;
 	key.start = key.end = the_char;
 
@@ -577,13 +594,7 @@ item_compare_for_sorting(const void *l, const void *r)
 	set_item *right = (set_item *) r;
 
 	if (left->item_type == CTYPE_ITEM && right->item_type == CTYPE_ITEM) {
-		// compare pointers
-		if (left->iswXXX < right->iswXXX)
-			return -1;
-		else if (left->iswXXX == right->iswXXX)
-			return 0;
-		else
-			return +1;
+		return left->wtype - right->wtype;
 	} else if (left->item_type == CTYPE_ITEM && right->item_type == RANGE_ITEM) {
 		return -1;
 	} else if (left->item_type == RANGE_ITEM && right->item_type == CTYPE_ITEM) {
@@ -595,15 +606,9 @@ item_compare_for_sorting(const void *l, const void *r)
 }
 @
 
-The searching function is simpler.  We do need to know
-which of the two items is the key and which is
-the element.  On GNU/Linux with GLIBC, and macOS, the first argument
-is the key@footnote{@xref{Checking @code{bsearch()}}, for
-more information.},
-but we make provision in case things work differently.
-
-@strong{FIXME:} I'm thinking that it's safe to assume that
-the first comparison argument is always the key. Thoughts?
+The searching function is simpler.  POSIX tells us that the first
+argument is the key and the second is the array element being
+compared.
 
 @<item comparison function@>=
 /* item_compare_for_searching --- compare two set_items */
@@ -613,9 +618,6 @@ item_compare_for_searching(const void *k, const void *e)
 {
 	set_item *thekey = (set_item *) k;
 	set_item *elem = (set_item *) e;
-
-	if (elem == & key)
-		return item_compare_for_searching(elem, thekey);	// swap
 
 	assert(thekey->item_type == RANGE_ITEM && elem->item_type == RANGE_ITEM);
 
@@ -633,34 +635,7 @@ item_compare_for_searching(const void *k, const void *e)
 @node Printing
 @section Printing The Data Structure
 
-Dumping the data requires a table of @code{<wctype.h>} functions
-that will be useful both for debugging and for construction of
-the data.
-
-@<data structures@>=
-@<global data@>
-@
-
-@<global data@>=
-static struct _ctype_functions {
-	const char *name;		// name
-	int (*fp)(wint_t ch);	// function pointer
-} ctype_functions[] = {
-	{ "[:alnum:]", iswalnum },
-	{ "[:alpha:]", iswalpha },
-	{ "[:blank:]", iswblank },
-	{ "[:cntrl:]", iswcntrl },
-	{ "[:digit:]", iswdigit },
-	{ "[:graph:]", iswgraph },
-	{ "[:lower:]", iswlower },
-	{ "[:print:]", iswprint },
-	{ "[:punct:]", iswpunct },
-	{ "[:space:]", iswspace },
-	{ "[:upper:]", iswupper },
-	{ "[:xdigit:]", iswxdigit },
-	{ NULL, NULL }
-};
-@
+Printing the data is straightforward.
 
 @<API functions@>=
 /* bracket_expr_dump --- dump out the data structures */
@@ -677,8 +652,7 @@ bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
 	set_item *set = brack_expr->items;
 	for (int i = 0; i < brack_expr->nelems; i++) {
 		if (set[i].item_type == CTYPE_ITEM) {
-			fprintf(fp, "%3d. CTYPE: %s\n", i,
-				find_ctype_name(set[i].iswXXX));
+			fprintf(fp, "%3d. CTYPE: [:%s:]\n", i, set[i].type_name);
 			continue;
 		}
 		assert(set[i].item_type == RANGE_ITEM);
@@ -686,23 +660,6 @@ bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
 			i, set[i].start, set[i].end);
 	}
 	fflush(fp);
-}
-@
-
-Matching the function to the name is done with a
-simple linear search.
-
-@<helper functions@>=
-/* find_ctype_name --- helper function to get the name from a function pointer */
-
-static const char *
-find_ctype_name( int (*fp)(wint_t ch) )
-{
-	for (int i = 0; ctype_functions[i].fp != NULL; i++)
-		if (ctype_functions[i].fp == fp)
-			return ctype_functions[i].name;
-
-	return NULL;	// really shouldn't happen
 }
 @
 
@@ -763,7 +720,7 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 			cp++;
 			@<get second wide character@>
 			if (second_wc < first_wc) {
-					snprintf(errbuf, errbuf_size, "invalid range L'%lc'-L'%lc'", first_wc, second_wc);
+					snprintf(errbuf, errbuf_size, "invalid range L'%lc' - L'%lc'", first_wc, second_wc);
 					return NULL;
 			}
 			if (! push_range_item(bracket_expr, ignore_case, first_wc, second_wc, errbuf, errbuf_size))
@@ -1096,7 +1053,8 @@ items = bracket_expr->items;
 for (i = 0, j = 1; j < bracket_expr->nelems; i++, j++) {
 	if (   items[i].item_type == CTYPE_ITEM
 		&& items[j].item_type == CTYPE_ITEM
-		&& items[i].iswXXX == items[j].iswXXX) {
+		&& items[i].wtype == items[j].wtype) {
+		free((void *) items[j].type_name);
 		@<shift @code{items} down by one@>
 	} else if (items[i].item_type != items[j].item_type) {
 		continue;
@@ -1212,20 +1170,25 @@ j = i + 1;
 @section Handling Character Classes Like @code{[:alpha:]}
 
 Finally, it's time to deal with @code{[...[:alpha:]...]}.
+POSIX allows for locales to have additional character classes
+above and beyond the standard 12 classes available in every locale.
+This means we have to ``nerd through'' the string to find the name,
+copy it, and then look it up with with @code{wctype()}.  Sigh.
 
 @<process @code{[:...:]} items@>=
 if (cp + 2 < last && cp[0] == '[' && cp[1] == ':') {
 	size_t count = 0;
-	int (*fp)(wint_t);
+	wctype_t the_type;
+	const char *the_name;
 
-	fp = find_ctype_function(cp, & count,
-								errbuf, errbuf_size);
-	if (fp == NULL)
+	cp += 2;
+	if (! find_ctype_info(cp, & count, & the_type, & the_name,
+			errbuf, errbuf_size))
 		goto fail;
 
 	cp += count;
 	if (! push_ctype_item(bracket_expr, ignore_case,
-			fp, errbuf, errbuf_size))
+			the_type, the_name, errbuf, errbuf_size))
 		goto fail;
 
 	cp--;	// compensate for loop
@@ -1234,57 +1197,101 @@ if (cp + 2 < last && cp[0] == '[' && cp[1] == ':') {
 @
 
 @<helper functions@>=
-/* find_ctype_function --- return the function for a character class */
+/* find_ctype_info --- fill in the info for a character class */
 
-typedef int (*ctype_func)(wint_t);
-static ctype_func
-find_ctype_function(const char *cp, size_t *count,
-                    char *errbuf, size_t errbuf_size)
+static bool
+find_ctype_info(const char *cp, size_t *count,
+                wctype_t *the_type, const char **the_name,
+                char *errbuf, size_t errbuf_size)
 {
-	for (int i = 0; ctype_functions[i].name != NULL; i++) {
-		int len = strlen(ctype_functions[i].name);
+	size_t len = strlen(cp);
+	const char *begin = cp;
+	const char *last = cp + len;
+	char *namep = NULL;
+	char *name_buf;
 
-		if (strncmp(cp, ctype_functions[i].name, len) == 0) {
-			*count = len;
-
-			return ctype_functions[i].fp;
-		}
+	name_buf = (char *) malloc(len + 1);
+	if (name_buf == NULL) {
+			snprintf(errbuf, errbuf_size, "out of memory for character class name");
+			return false;
 	}
+	memset(name_buf, 0, len + 1);
 
-	char *p = strchr(cp, ']');
-	int l;
-	if (p != NULL)
-		l = (p - cp) + 1;
-	else
-		l = 5;	// guess
+	for (namep = name_buf; cp < last && *cp != ':'; cp++)
+		*namep++ = *cp;
 
-	snprintf(errbuf, errbuf_size, "unknown class %.*s", l, cp);
+	*namep = '\0';
+	if (cp[1] != ']') {
+			snprintf(errbuf, errbuf_size, "character class name %s missing closing \":]\"", name_buf);
+			free(name_buf);
+			return false;
+	}
+	cp += 2;
+	*count = cp - begin;
 
-	return NULL;
+	*the_type = wctype(name_buf);
+	if (*the_type == 0) {	// not a known class name
+			snprintf(errbuf, errbuf_size, "unknown character class %s", name_buf);
+			free(name_buf);
+			return false;
+	}
+	*the_name = name_buf;
+
+	return true;
 }
 @
 
 Pushing a @code{CTYPE_ITEM} is similar to pushing a @code{RANGE_ITEM}.
+However, we have a lot of memory management details to worry about.
 
 @<helper functions@>=
 /* push_ctype_item --- add a ctype item to the expression */
 
 static bool
 push_ctype_item(BRACKET_EXPR *bracket_expr, bool ignore_case,
-				int (*funcp)(wint_t),
+				wctype_t the_type, const char *the_name,
 				char *errbuf, size_t errbuf_size)
 {
+	static bool first = true;
+	static wctype_t lower, upper;
+	static const char *lower_s, *upper_s;
+
+	if (first) {
+		first = false;
+		lower = wctype("lower");
+		upper = wctype("upper");
+		lower_s = strdup("lower");
+		upper_s = strdup("upper");
+		if (lower_s == NULL || upper_s == NULL) {
+			snprintf(errbuf, errbuf_size, "out of memory for character class name");
+			return false;
+		}
+	}
+
 	@<grow the set of items if necessary@>
 	set_item new_item;
 	new_item.item_type = CTYPE_ITEM;
-	if (ignore_case && (funcp == iswupper || funcp == iswlower)) {
-		new_item.iswXXX = iswupper;
+	if (ignore_case && (the_type == lower || the_type == upper)) {
+		// lots of niggling details here...
+		new_item.wtype = upper;
+		new_item.type_name = strdup(upper_s);
+		if (new_item.type_name == NULL) {
+			snprintf(errbuf, errbuf_size, "out of memory for character class name in item");
+			return false;
+		}
 		bracket_expr->items[bracket_expr->nelems++] = new_item;
 
-		new_item.iswXXX = iswlower;
+		new_item.wtype = lower;
+		new_item.type_name = strdup(lower_s);
+		if (new_item.type_name == NULL) {
+			snprintf(errbuf, errbuf_size, "out of memory for character class name in item");
+			return false;
+		}
 		bracket_expr->items[bracket_expr->nelems++] = new_item;
+		free((void *) the_name);
 	} else {
-		new_item.iswXXX = funcp;
+		new_item.wtype = the_type;
+		new_item.type_name = the_name;
 		bracket_expr->items[bracket_expr->nelems++] = new_item;
 	}
 
@@ -1294,6 +1301,9 @@ push_ctype_item(BRACKET_EXPR *bracket_expr, bool ignore_case,
 
 @node Equivalence Classes and Collating Elements
 @section Handling Equivalence Classes and Collating Elements
+
+The first step for an equivalence class is to extract
+the wide character and make sure it has the closing @samp{=]}.
 
 @<process @code{[=...=]} items@>=
 if (cp + 2 < last && cp[0] == '[' && cp[1] == '=') {
@@ -1344,8 +1354,11 @@ add_equivalent_characters(wint_t wc, char *errbuf, size_t errbuf_size)
 }
 @
 
+@strong{FIXME:}
 This is good for Unicode.  Eventually, we should figure out
 if we're in a Unicode locale and do something different if not.
+On the other hand, it's likely to work as-is for other
+wide character sets as well. So maybe just leave it alone?
 
 We allow single character collating elements:
 
@@ -1420,6 +1433,7 @@ main(int argc, char **argv)
 	setlocale(LC_ALL, "");
 	@<compile the expression@>
 	@<test each wide character in the test case against the expression@>
+	@<dump the data if needed@>
 
 	return EXIT_SUCCESS;
 }
@@ -1460,7 +1474,7 @@ while ((c = getopt(argc, argv, "SFdeiq")) != -1) {
 
 if (   (! expect_success && ! expect_failure)
     || (expect_success && expect_failure)) {
-	fprintf(stderr, "Only one of -S or -F must be given\n");
+	fprintf(stderr, "You must give only one of -S or -F.\n");
 	usage(argv[0]);
 }
 else if (optind + 2 > argc)	// no expr or no string provided
@@ -1473,7 +1487,8 @@ else if (optind + 2 > argc)	// no expr or no string provided
 static void
 usage(const char *name)
 {
-	fprintf(stderr, "Usage: %s -S|-F [-dei] '[bracket-expression]' '<string of characters>'\n",
+	fprintf(stderr, "Usage: %s -S|-F [-deiq] '[bracket-expression]'" \
+					" '<string of characters>'\n",
 			name);
 	fprintf(stderr, "\t-S\tExpect match success.\n");
 	fprintf(stderr, "\t-F\tExpect failure of some kind.\n");
@@ -1531,8 +1546,6 @@ for (cp = argv[optind + 1]; *cp != '\0';) {
 		fprintf(stderr, "%s: succeeded to match L'%lc', failure expected.\n", argv[optind], wc);
 		@<dump the data if needed@>
 		exit(EXIT_FAILURE);
-	} else {
-		@<dump the data if needed@>
 	}
 }
 @
@@ -1541,69 +1554,6 @@ for (cp = argv[optind + 1]; *cp != '\0';) {
 if (dump_data)
 	bracket_expr_dump(bracket_expr, stdout);
 @
-
-@node Checking @code{bsearch()}
-@appendix Checking Out @code{bsearch()}
-
-As mentioned earlier, when working with @code{bsearch()} and writing
-the comparison function, it helps to know which argument is the key
-and which is the array element being compared.  This short demo program
-demonstrates that on Ubuntu 22.04 and macOS, it's the first argument to
-the comparison function that is the key.
-
-@(bsearch-demo.c@)=
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdlib.h>
-
-int key;
-
-int
-compare(const void *l, const void *r)
-{
-	int *left = (int *) l;
-	int *right = (int *) r;
-	static bool lp = false, rp = false;
-
-	if (left == & key && ! lp) {
-		printf("left == key\n");
-		lp = true;
-	} else if (right == & key && ! rp) {
-		printf("right == key\n");
-		rp = true;
-	}
-
-	if (right == & key)
-		return compare(r, l);	// swap them
-
-	return *left - *right;
-}
-
-int
-main(int argc, char **argv)
-{
-	int data[] = {
-		1, 2, 3, 4, 5 ,6 ,7 ,8, 9, 10
-	};
-
-	key = 7;
-	int *result = bsearch(& key, data, 10, sizeof(int), compare);
-
-	printf("got %d, %p in %p - %p\n", *result, result,
-			data, data + 10);
-
-	return 0;
-}
-@
-
-@noindent
-When run on macOS, we get:
-
-@example
-$ @kbd{./bsearch-demo}
-left == key
-got 7, 0x7ff7bbe9d688 in 0x7ff7bbe9d670 - 0x7ff7bbe9d698
-@end example
 
 @node Code Chunk Summaries
 @appendix Code Chunk Summaries

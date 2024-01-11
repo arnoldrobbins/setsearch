@@ -1,3 +1,8 @@
+2024-01-11         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* setserch.twjr: Rework [:...:] handling per comments from Mike.
+	Also other cleanups.
+
 2024-01-08         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* setserch.twjr (bracket_expr_create): Handle [=x=] and [.x.].
