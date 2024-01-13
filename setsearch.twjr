@@ -466,12 +466,18 @@ the memory:
 
 @<data structures@>=
 struct _bracket_expr {
-	bool	complemented;	// For [^...] sets
-	size_t	nelems;			// Number of elements in use
-	size_t	allocated;		// Number allocated.
-	set_item *items;		// Array of items
+	bool	complemented;		// For [^...] sets
+	bool	escapes_allowed;	// For dumping
+	bool	ignore_case;		// For dumping
+	size_t	nelems;				// Number of elements in use
+	size_t	allocated;			// Number allocated.
+	set_item *items;			// Array of items
 };
 @
+
+The @code{escapes_allowed} and @code{ignore_case} members are not
+strictly necessary. But they are useful when dumping the data in
+that it tells us how the bracket expression was constructed.
 
 @node The Easy Stuff
 @chapter The Easy Functions
@@ -648,6 +654,10 @@ bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
 
 	if (brack_expr->complemented)
 		fprintf(fp, "complemented = true\n");
+	if (brack_expr->escapes_allowed)
+		fprintf(fp, "escapes_allowed = true\n");
+	if (brack_expr->ignore_case)
+		fprintf(fp, "ignore_case = true\n");
 
 	set_item *set = brack_expr->items;
 	for (int i = 0; i < brack_expr->nelems; i++) {
@@ -800,6 +810,8 @@ if (bracket_expr->items == NULL) {
 memset(bracket_expr->items, 0, INITIAL_SIZE * sizeof(set_item));
 bracket_expr->allocated = INITIAL_SIZE;
 bracket_expr->nelems = 0;
+bracket_expr->escapes_allowed = escapes_allowed;
+bracket_expr->ignore_case = ignore_case;
 @
 
 We will come back to the various kinds of items such as @code{[:alpha:]} that
@@ -955,7 +967,8 @@ for (i = 0, j = 1; j < wc_inuse; i++, j++) {
 		wide_chars[j] = 0;
 
 		wc_inuse--;
-		j = i + 1;
+		j = i;
+		i--;	// keep searching from same spot
 	}
 }
 wide_chars[wc_inuse] = 0;	// not strictly necessary, but doesn't hurt
@@ -1383,7 +1396,12 @@ if (cp + 2 < last && cp[0] == '[' && cp[1] == '.') {
 @
 
 @node
-@chapter A Test Program
+@chapter A Test Program And Driver
+
+We need a test program, and a shell script to drive it:
+
+@node test program
+@section The Test Program
 
 The test program builds a set and then compares one or more characters
 against the set.  It takes several options:
@@ -1554,6 +1572,45 @@ for (cp = argv[optind + 1]; *cp != '\0';) {
 if (dump_data)
 	bracket_expr_dump(bracket_expr, stdout);
 @
+
+@node test driver
+@section The Test Program Driver Script
+
+The idea is to have a text file containing tests, and a shell
+script to read the tests and call @command{btest} appropriately.
+The text file will have three columns separated by tabs:
+
+@enumerate
+@item
+The command line options. At the very least one of @option{-F} or @option{-S}.
+
+@item
+The bracket expression.
+
+@item
+One or more characters to test against the bracket expression.
+@end enumerate
+
+Lines that start with @samp{#} are comment lines and are ignored (via @samp{grep -v}).
+We rely on Bash's special @code{$'@dots{}'} string notation to include TAB
+characters instead of using physical TAB characters in the file.
+
+@(runtests.sh@)=
+#! /bin/bash
+
+TESTFILE=${1:-testdata.txt}
+
+grep -v $'^[ \t]*#' $TESTFILE |
+	while IFS=$'\t' read options expr chars
+	do
+		./btest $options "$expr" "$chars"
+		echo
+	done
+@
+@post_create runtests.sh chmod +x runtests.sh
+
+We rely on the @file{Makefile} to save the results and compare them
+to known good results.
 
 @node Code Chunk Summaries
 @appendix Code Chunk Summaries

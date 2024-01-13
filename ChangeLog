@@ -1,3 +1,10 @@
+2024-01-13         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* setsearch.twjr: Fix removing duplicate wide characters.
+	Add escapes_allowed and ignore_case members to bracket_expr
+	struct for debugging.
+	(runtests.sh): Test driver shell script.
+
 2024-01-11         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* setserch.twjr: Rework [:...:] handling per comments from Mike.
