@@ -1,3 +1,8 @@
+2024-01-14         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile (clean): Update target.
+	* testdata.txt: New file.
+
 2024-01-13         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* setsearch.twjr: Fix removing duplicate wide characters.

@@ -34,4 +34,4 @@ $(SOURCE): $(TWJRSOURCE)
 	./jrtangle $(TWJRSOURCE)
 
 clean:
-	rm -f *.[cho] setsearch.?? setsearch.??? setsearch.texi testit[12]
+	rm -f *.[cho] setsearch.?? setsearch.??? setsearch.texi btest runtests.sh

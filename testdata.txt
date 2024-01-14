@@ -1,0 +1,12 @@
+# test data for the btest program which tests matching against bracket
+# expressions.
+#
+# Fields are separated by a single tab.
+#
+# Column 1 - options	Column 2 - expression	Column 3 - characters
+-Sd	[abcdefghijklmnopqrstuvwxyz]	abcdhq
+-Sd	[^abcdefghijklmnopqrstuvwxyz]	ABCDHQ
+-Fd	[abcdefghijklmnopqrstuvwxyz]	ABCDHQ
+-Fd	[^abcdefghijklmnopqrstuvwxyz]	abcdhq
+-Sdi	[abcdefghijklmnopqrstuvwxyz]	abcdhqABCDHQ
+-Fdi	[^abcdefghijklmnopqrstuvwxyz]	abcdhqABCDHQ
