@@ -10,3 +10,5 @@
 -Fd	[^abcdefghijklmnopqrstuvwxyz]	abcdhq
 -Sdi	[abcdefghijklmnopqrstuvwxyz]	abcdhqABCDHQ
 -Fdi	[^abcdefghijklmnopqrstuvwxyz]	abcdhqABCDHQ
+-Sde	[abc\\[:digit\\]1-4]	ad:[]2
+-Fde	[^abc\\[:digit\\]1-4]	ad:[]2

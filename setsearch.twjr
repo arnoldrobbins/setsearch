@@ -714,15 +714,18 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 	for (; cp < last && *cp != ']'; cp++) {
 		if (*cp == '\\' && escapes_allowed) {
 			cp++;
-			if (cp == last) {
+			if (cp >= last) {
 				snprintf(errbuf, errbuf_size, "unterminated expression");
 				return NULL;
 			}
+			goto get_first_char;	// horror!
 		}
 
 		@<process @code{[:...:]} items@>
 		@<process @code{[=...=]} items@>
 		@<process @code{[.X.]} items@>
+
+get_first_char:	{ /* must have a statement after the label */ }
 
 		wint_t first_wc, second_wc;
 		@<get first wide character@>
@@ -1591,7 +1594,8 @@ The bracket expression.
 One or more characters to test against the bracket expression.
 @end enumerate
 
-Lines that start with @samp{#} are comment lines and are ignored (via @samp{grep -v}).
+Lines that start with @samp{#} are comment lines and are ignored, as are
+empty lines.
 We rely on Bash's special @code{$'@dots{}'} string notation to include TAB
 characters instead of using physical TAB characters in the file.
 
@@ -1600,7 +1604,7 @@ characters instead of using physical TAB characters in the file.
 
 TESTFILE=${1:-testdata.txt}
 
-grep -v $'^[ \t]*#' $TESTFILE |
+sed -e $'/^[ \t]*#/d' -e '/^[ \t]*$/d' $TESTFILE |
 	while IFS=$'\t' read options expr chars
 	do
 		./btest $options "$expr" "$chars"
