@@ -1,4 +1,4 @@
-# test data for the btest program which tests matching against bracket
+# Test data for the btest program which tests matching against bracket
 # expressions.
 #
 # Fields are separated by a single tab.
@@ -10,5 +10,6 @@
 -Fd	[^abcdefghijklmnopqrstuvwxyz]	abcdhq
 -Sdi	[abcdefghijklmnopqrstuvwxyz]	abcdhqABCDHQ
 -Fdi	[^abcdefghijklmnopqrstuvwxyz]	abcdhqABCDHQ
+# For escapes, we need two backslashes, since the shell processes the string.
 -Sde	[abc\\[:digit\\]1-4]	ad:[]2
 -Fde	[^abc\\[:digit\\]1-4]	ad:[]2

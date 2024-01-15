@@ -1,6 +1,7 @@
 2024-01-15         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* setsearch.twjr: Fix handling of escapes.
+	Always print all members of the struct when dumping.
 	* testdata.txt: Add escaping test cases.
 
 2024-01-14         Arnold D. Robbins     <arnold@skeeve.com>

@@ -649,15 +649,17 @@ Printing the data is straightforward.
 void
 bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
 {
+	static const char *boolval[] = {
+		"false",
+		"true",
+	};
+
 	if (brack_expr == NULL || fp == NULL)
 		return;
 
-	if (brack_expr->complemented)
-		fprintf(fp, "complemented = true\n");
-	if (brack_expr->escapes_allowed)
-		fprintf(fp, "escapes_allowed = true\n");
-	if (brack_expr->ignore_case)
-		fprintf(fp, "ignore_case = true\n");
+	fprintf(fp, "complemented = %s\n", boolval[!! brack_expr->complemented]);
+	fprintf(fp, "escapes_allowed = %s\n", boolval[!! brack_expr->escapes_allowed]);
+	fprintf(fp, "ignore_case = %s\n", boolval[!! brack_expr->ignore_case]);
 
 	set_item *set = brack_expr->items;
 	for (int i = 0; i < brack_expr->nelems; i++) {
@@ -769,7 +771,7 @@ fail:
 @
 
 An @samp{^} as the first character in the bracket expression complements
-it. To get a literal @samp{-}, it can be the first character in the expressions.
+it. To get a literal @samp{-}, it can be the first character in the expression.
 
 @<special cases at the beginning@>=
 // special cases at the beginning
@@ -1270,18 +1272,13 @@ push_ctype_item(BRACKET_EXPR *bracket_expr, bool ignore_case,
 {
 	static bool first = true;
 	static wctype_t lower, upper;
-	static const char *lower_s, *upper_s;
+	static const char lower_s[] = "lower";
+	static const char upper_s[] = "upper";
 
 	if (first) {
 		first = false;
 		lower = wctype("lower");
 		upper = wctype("upper");
-		lower_s = strdup("lower");
-		upper_s = strdup("upper");
-		if (lower_s == NULL || upper_s == NULL) {
-			snprintf(errbuf, errbuf_size, "out of memory for character class name");
-			return false;
-		}
 	}
 
 	@<grow the set of items if necessary@>
@@ -1417,13 +1414,13 @@ Expect failure. Mutually exclusive with @option{-S}.
 Expect success. Mutually exclusive with @option{-F}.
 
 @item -d
-Dump the data structure if the result isn't what's expected.
+Dump the data structure.
 
 @item -e
 Escapes are allowed. By default they are not.
 
 @item -i
-Ignore case when matching.
+Ignore case when matching. By default case is significant.
 
 @item -q
 Be quiet: don't print out what we're attempting match.
@@ -1604,7 +1601,7 @@ characters instead of using physical TAB characters in the file.
 
 TESTFILE=${1:-testdata.txt}
 
-sed -e $'/^[ \t]*#/d' -e '/^[ \t]*$/d' $TESTFILE |
+sed -e $'/^[ \t]*#/d' -e $'/^[ \t]*$/d' $TESTFILE |
 	while IFS=$'\t' read options expr chars
 	do
 		./btest $options "$expr" "$chars"
@@ -1615,6 +1612,8 @@ sed -e $'/^[ \t]*#/d' -e '/^[ \t]*$/d' $TESTFILE |
 
 We rely on the @file{Makefile} to save the results and compare them
 to known good results.
+
+For now, the test data is not included in this document.
 
 @node Code Chunk Summaries
 @appendix Code Chunk Summaries
