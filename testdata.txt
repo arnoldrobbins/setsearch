@@ -13,3 +13,5 @@
 # For escapes, we need two backslashes, since the shell processes the string.
 -Sde	[abc\\[:digit\\]1-4]	ad:[]2
 -Fde	[^abc\\[:digit\\]1-4]	ad:[]2
+-Sde	[abc\\[-\\]1-4]	a[]2
+-Fde	[^abc\\[-\\]1-4]	a[]2

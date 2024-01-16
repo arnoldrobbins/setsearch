@@ -19,7 +19,7 @@
 
 @c These apply across the board.
 @set UPDATE-MONTH January, 2024
-@set EDITION 0.1
+@set EDITION 0.2
 
 @set TITLE Efficient Searching of Large Character Sets
 @set SHORTTITLE Searching Character Sets
@@ -141,7 +141,7 @@ URL: @url{https://www.skeeve.com/} @*
 @end ifnotdocbook
 @end titlepage
 
-@set DRAFT @i{DRAFT}
+@c @set DRAFT @i{DRAFT}
 
 @iftex
 @headings off
@@ -265,6 +265,21 @@ kinds of characters to be matched.
 The ideas for this data structure and how to use it have been bouncing around in
 my head for some time. This @value{DOCUMENT} presents the design and implementation
 of a sublibrary (so to speak) for dealing with bracket expressions.
+
+The machine-readable files are available from GitHub. The steps
+necessary to get them are:
+
+@example
+git clone https://github.com/arnoldrobbins/setsearch
+cd setsearch
+vim jrweave jrtangle    # or emacs :-). Set the path to gawk
+make
+@end example
+
+@noindent
+You will need to have @TeX{} and Texinfo installed,
+including @command{texi2pdf}.  Or you can ask me for
+a PDF, if necessary.
 
 @node API
 @chapter The C API
@@ -919,7 +934,17 @@ if (count == (size_t) -1 || count == (size_t) -2) {
 cp += count;
 @
 
+We have to check for @samp{\} at this point too.
+Something like @samp{[...\[-\]...]} ought to work.
+
 @<get second wide character@>=
+if (*cp == '\\' && escapes_allowed) {
+	cp++;
+	if (cp >= last) {
+		snprintf(errbuf, errbuf_size, "unterminated expression");
+		return NULL;
+	}
+}
 count = mbrtowc(& second_wc, cp, mb_cur_max, & mbs);
 if (count == (size_t) -1 || count == (size_t) -2) {
 	snprintf(errbuf, errbuf_size, "invalid multibyte sequence");
