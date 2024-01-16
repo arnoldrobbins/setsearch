@@ -733,7 +733,7 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 			cp++;
 			if (cp >= last) {
 				snprintf(errbuf, errbuf_size, "unterminated expression");
-				return NULL;
+				goto fail;
 			}
 			goto get_first_char;	// horror!
 		}
@@ -942,7 +942,7 @@ if (*cp == '\\' && escapes_allowed) {
 	cp++;
 	if (cp >= last) {
 		snprintf(errbuf, errbuf_size, "unterminated expression");
-		return NULL;
+		goto fail;
 	}
 }
 count = mbrtowc(& second_wc, cp, mb_cur_max, & mbs);
