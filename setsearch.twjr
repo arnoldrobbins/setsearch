@@ -311,6 +311,7 @@ extern "C" {
 typedef struct _bracket_expr BRACKET_EXPR;
 
 const BRACKET_EXPR *bracket_expr_create(const char *expr,
+                                        size_t expr_len,
                                         char **endp,
                                         bool escapes_allowed,
                                         bool ignore_case,
@@ -334,6 +335,7 @@ The routines and what they do are as follows:
 
 @table @code
 @item const BRACKET_EXPR *bracket_expr_create(const char *expr,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t expr_len,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char **endp,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool escapes_allowed,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool ignore_case,
@@ -347,7 +349,14 @@ routines. Upon failure, it returns @code{NULL}.  The parameters are:
 @table @code
 @item const char *expr
 A pointer to the opening @samp{[} of the bracket expression.
-@code{expr} must be a NUL-terminated standard C string.
+Altough it'd be nice if we could mandate that @code{expr} be a NUL-terminated standard C string,
+we can't. The GNU ``no arbitrary limits'' principle requires that even
+something like @samp{[abc\000123]} should work; NUL bytes can
+be included in the regexp and matched.
+
+@item size_t expr_len
+How many bytes are available to be processed starting
+from @code{expr}.
 
 @item char **endp
 A pointer to a pointer. Upon success, @code{*end} is set to point to
@@ -702,6 +711,7 @@ into the data structure.
 /* bracket_expr_create --- parse the expression and build a BRACKET_EXPR */
 
 const BRACKET_EXPR *bracket_expr_create(const char *expr,
+                                        size_t expr_len,
                                         char **endp,
                                         bool escapes_allowed,
 										bool ignore_case,
@@ -721,7 +731,7 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 
 	const char *cp, *last;
 	cp = expr + 1;
-	last = cp + strlen(cp);
+	last = expr + expr_len;
 
 	@<special cases at the beginning@>
 
@@ -1548,8 +1558,9 @@ char errbuf[BUFSIZ];
 size_t errbuf_size = sizeof(errbuf);
 const BRACKET_EXPR *bracket_expr;
 char *end;
-bracket_expr = bracket_expr_create(argv[optind], & end, escapes_allowed,
-				ignore_case, errbuf, errbuf_size);
+bracket_expr = bracket_expr_create(argv[optind], strlen(argv[optind]), & end,
+                   escapes_allowed, ignore_case,
+                   errbuf, errbuf_size);
 if (bracket_expr == NULL && expect_success) {
 	fprintf(stderr, "bad expression: %s\n", errbuf);
 	// can't dump the data, return was NULL
@@ -1561,7 +1572,8 @@ if (bracket_expr == NULL && expect_success) {
 mbstate_t mbs;
 memset(& mbs, 0, sizeof(mbs));
 if (! quiet)
-	printf("%s: %s\n", argv[optind], argv[optind+1]);
+	printf("expect %s: %s: %s\n", expect_success ? "success" : "failure",
+			argv[optind], argv[optind+1]);
 
 for (cp = argv[optind + 1]; *cp != '\0';) {
 	size_t count;
