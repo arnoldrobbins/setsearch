@@ -15,3 +15,7 @@
 -Fde	[^abc\\[:digit\\]1-4]	ad:[]2
 -Sde	[abc\\[-\\]1-4]	a[]2
 -Fde	[^abc\\[-\\]1-4]	a[]2
+-Sd	[,.![:digit:]^%[:lower:]@#[:digit:]A-D]	2,.!^%ab@#B
+-Fd	[^,.![:digit:]^%[:lower:]@#[:digit:]A-D]	2,.!^%ab@#B
+-Sd	[^,.![:digit:]^%[:lower:]@#[:digit:]A-D]	()
+-Fd	[,.![:digit:]^%[:lower:]@#[:digit:]A-D]	()
