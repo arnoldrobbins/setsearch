@@ -19,3 +19,12 @@
 -Fd	[^,.![:digit:]^%[:lower:]@#[:digit:]A-D]	2,.!^%ab@#B
 -Sd	[^,.![:digit:]^%[:lower:]@#[:digit:]A-D]	()
 -Fd	[,.![:digit:]^%[:lower:]@#[:digit:]A-D]	()
+-Sd	[abcdefqrsc-ha-c---DEF]	ah-E
+-Sdi	[abcdefqrsc-ha-c---DEF]	AH-e
+-Fd	[abcdefqrsc-ha-c---DEF]	1234
+-Sd	[\\^\\\\abcde]	ab\\^c
+-Sd	[]abc]	]ab
+-Sd	[]-abc]	]ab-
+-Fd	[^]-abc]	]ab-
+-Sd	[-]abc]	]ab-
+-Fd	[^-]abc]	]ab-

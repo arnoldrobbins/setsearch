@@ -141,7 +141,7 @@ URL: @url{https://www.skeeve.com/} @*
 @end ifnotdocbook
 @end titlepage
 
-@c @set DRAFT @i{DRAFT}
+@set DRAFT
 
 @iftex
 @headings off
@@ -797,6 +797,9 @@ fail:
 
 An @samp{^} as the first character in the bracket expression complements
 it. To get a literal @samp{-}, it can be the first character in the expression.
+The same applies for a literal @samp{]}.  What if someone gives us
+@samp{[]-]} or @samp{[-]]}?  Yucko. Talk about nerdy stuff. Let's
+try to allow either one. This leads to somewht grungy code:
 
 @<special cases at the beginning@>=
 // special cases at the beginning
@@ -810,6 +813,21 @@ if (*cp == '-') {
 	if (! push_range_item(bracket_expr, ignore_case, L'-', L'-', errbuf, errbuf_size))
 		goto fail;
 	cp++;
+	if (*cp == ']') {
+		if (! push_range_item(bracket_expr, ignore_case, L']', L']', errbuf, errbuf_size))
+			goto fail;
+		cp++;
+	}
+} else if (*cp == ']') {
+	// ']' as first character is taken literally
+	if (! push_range_item(bracket_expr, ignore_case, L']', L']', errbuf, errbuf_size))
+		goto fail;
+	cp++;
+	if (*cp == '-') {
+		if (! push_range_item(bracket_expr, ignore_case, L'-', L'-', errbuf, errbuf_size))
+			goto fail;
+		cp++;
+	}
 }
 @
 
@@ -1198,7 +1216,7 @@ if (items[i].start == items[j].start && items[i].end == items[j].end) {
 	need_shift = true;
 } else if (items[i].start < items[j].start && items[i].end > items[j].end) {
 	need_shift = true;
-} else if (   items[i].start < items[j].start
+} else if (   items[i].start <= items[j].start
            && items[i].end > items[j].start
            && items[j].end >= items[i].end) {
 	items[i].end = items[j].end;
