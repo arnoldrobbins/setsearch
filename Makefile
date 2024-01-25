@@ -37,4 +37,4 @@ clean:
 	rm -f *.[cho] setsearch.?? setsearch.??? setsearch.texi btest runtests.sh
 
 spell:
-	spell $(TWJRSOURCE) | LC_ALL=C sort -u | comm -23 - wordlist
+	spell $(TWJRSOURCE) | LC_ALL=C sort -u | LC_ALL=C comm -23 - wordlist

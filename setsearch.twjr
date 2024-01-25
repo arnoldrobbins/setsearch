@@ -349,7 +349,7 @@ routines. Upon failure, it returns @code{NULL}.  The parameters are:
 @table @code
 @item const char *expr
 A pointer to the opening @samp{[} of the bracket expression.
-Altough it'd be nice if we could mandate that @code{expr} be a NUL-terminated standard C string,
+Although it'd be nice if we could mandate that @code{expr} be a NUL-terminated standard C string,
 we can't. The GNU ``no arbitrary limits'' principle requires that even
 something like @samp{[abc\000123]} should work; NUL bytes can
 be included in the regexp and matched.
@@ -799,7 +799,7 @@ An @samp{^} as the first character in the bracket expression complements
 it. To get a literal @samp{-}, it can be the first character in the expression.
 The same applies for a literal @samp{]}.  What if someone gives us
 @samp{[]-]} or @samp{[-]]}?  Yucko. Talk about nerdy stuff. Let's
-try to allow either one. This leads to somewht grungy code:
+try to allow either one. This leads to somewhat grungy code:
 
 @<special cases at the beginning@>=
 // special cases at the beginning

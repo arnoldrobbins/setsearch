@@ -1,6 +1,9 @@
 2024-01-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* jrweave, jrtangle: Sync with current TexiWeb Jr. sources.
+	* setsearch.twjr: Fix spelling errors.
+	* wordlist: Updated.
+	* Makefile (spell): Fix pipeline.
 
 2024-01-24         Arnold D. Robbins     <arnold@skeeve.com>
 
