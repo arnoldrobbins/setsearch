@@ -1,6 +1,6 @@
-#! /usr/local/bin/gawk -f
+#! /usr/bin/gawk -f
 #
-# Copyright (C) 2013, 2014, 2015, 2016, 2019 Arnold David Robbins
+# Copyright (C) 2013, 2014, 2015, 2016, 2019, 2024 Arnold David Robbins
 # 
 # This file is part of TexiWeb Jr., a literate programming system.
 # 
@@ -21,7 +21,7 @@
 # Up-to-date source code for TexiWeb Jr. can be obtained via
 # Git from github:
 #
-#	git clone http://github.com/arnoldrobbins/texiwebjr
+#	git clone https://github.com/arnoldrobbins/texiwebjr
 #
 # This is Edition @value{EDITION}, last updated @value{UPDATE-MONTH}.
 BEGIN {

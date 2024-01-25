@@ -1,6 +1,6 @@
-#! /usr/local/bin/gawk -f
+#! /usr/bin/gawk -f
 #
-# Copyright (C) 2013, 2014, 2015, 2016, 2019 Arnold David Robbins
+# Copyright (C) 2013, 2014, 2015, 2016, 2019, 2024 Arnold David Robbins
 # 
 # This file is part of TexiWeb Jr., a literate programming system.
 # 
@@ -21,7 +21,7 @@
 # Up-to-date source code for TexiWeb Jr. can be obtained via
 # Git from github:
 #
-#	git clone http://github.com/arnoldrobbins/texiwebjr
+#	git clone https://github.com/arnoldrobbins/texiwebjr
 #
 # This is Edition @value{EDITION}, last updated @value{UPDATE-MONTH}.
 BEGIN {
@@ -304,26 +304,12 @@ Pass == 2 && /^@sidebar[[:space:]]+/ {
 
 Pass == 2 && /^@end[[:space:]]+sidebar[[:space:]]*$/ {
 	Collecting_sidebar = FALSE
-	printf "@cindex sidebar, %s\n", Sidebar_title
-	printf "@ifdocbook\n"
-		printf "@docbook\n"
-		printf "<sidebar><title>%s</title>\n", Sidebar_title
-		printf "@end docbook\n"
-			print Sidebar_body
-		print ""
-		printf "@docbook\n"
-		printf "</sidebar>\n"
-		printf "@end docbook\n"
-	printf "@end ifdocbook\n\n"
-
-	printf "@ifnotdocbook\n"
-		printf "@cartouche\n"
-		printf "@center @b{%s}\n\n", Sidebar_title
-			print "@noindent"
-			sub(/^\n*/, "", Sidebar_body)	# remove initial newlines
-			print Sidebar_body
-		printf "@end cartouche\n"
-	printf "@end ifnotdocbook\n"
+	printf "@cindex sidebar @subentry %s\n", Sidebar_title
+	printf "@cartouche %s\n", Sidebar_title
+	print "@noindent"
+	sub(/^\n*/, "", Sidebar_body)	# remove initial newlines
+	print Sidebar_body
+	printf "@end cartouche\n"
 	Sidebar_body = ""
 	next
 }
@@ -525,7 +511,7 @@ function print_out_chunk(	x, y, n, i, parts, names,
 			chunk_being_used = \
 				format_chunk_name(name, Chunk_info[name]["chunk number"],
 					Chunk_info[name]["type"])
-			printf("@crindex %s, use @sortas{%s, use}\n", chunk_being_used, remove_markup(name))
+			printf("@crindex %s @subentry use @sortas{%s, use}\n", chunk_being_used, remove_markup(name))
 			y = y chunk_being_used
 			y = y parts[i+1]
 		}
@@ -534,7 +520,7 @@ function print_out_chunk(	x, y, n, i, parts, names,
 		format_chunk_name(Current_chunk,
 							Chunk_info[Current_chunk]["chunk number"],
 							Chunk_type)
-	printf("@cdindex %s, definition @sortas{%s, definition}\n",
+	printf("@cdindex %s @subentry definition @sortas{%s, definition}\n",
 		chunk_being_defined, remove_markup(Current_chunk))
 	printf("@noindent\n%s %s@equiv{}\n",
 		chunk_being_defined,
