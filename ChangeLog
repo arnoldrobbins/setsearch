@@ -1,3 +1,12 @@
+2024-03-03         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* setsearch.twjr: Rewrite parsing code per feedback from Mike.
+	Update modification date and edition.
+	* testdata.txt: Updated.
+	* tests.good: New file.
+	* Makefile: Add `check' target, link with -g.
+	* wordlist: Updated.
+
 2024-01-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* jrweave, jrtangle: Sync with current TexiWeb Jr. sources.

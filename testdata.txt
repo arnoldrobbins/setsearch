@@ -23,8 +23,11 @@
 -Sdi	[abcdefqrsc-ha-c---DEF]	AH-e
 -Fd	[abcdefqrsc-ha-c---DEF]	1234
 -Sd	[\\^\\\\abcde]	ab\\^c
--Sd	[]abc]	]ab
--Sd	[]-abc]	]ab-
--Fd	[^]-abc]	]ab-
--Sd	[-]abc]	]ab-
--Fd	[^-]abc]	]ab-
+-Sd	[]abc]	]abc
+-Sd	[]-abc]	]abc
+-Fd	[^]-abc]	]ab
+-Sd	[--/]	./-
+-Sd	[]-_]	]^_
+-Sd	[]abc-]	]ab-
+-Fd	[^]abc-]	]ab-
+-Fd	[a[:word:]c]	a

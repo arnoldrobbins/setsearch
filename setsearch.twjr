@@ -18,8 +18,8 @@
 @c This sets the edition of the document.
 
 @c These apply across the board.
-@set UPDATE-MONTH January, 2024
-@set EDITION 0.2
+@set UPDATE-MONTH March, 2024
+@set EDITION 0.3
 
 @set TITLE Efficient Searching of Large Character Sets
 @set SHORTTITLE Searching Character Sets
@@ -246,7 +246,8 @@ in this sentence.  Finally, file names are indicated like this:
 @node Acknowledgements
 @unnumberedsec Acknowledgements
 
-Your name here@dots{}
+Thanks to Mike Haertel for his feedback, and for giving me the
+opportunity to write this bit of code.
 
 @node Introduction
 @chapter Introduction
@@ -718,10 +719,16 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
                                         char *errbuf,
                                         size_t errbuf_size)
 {
+	@<variables for parsing@>
+	@<init variables for parsing@>
+
 	if (expr == NULL || endp == NULL) {
 		snprintf(errbuf, errbuf_size, "bad pointers received");
 		return NULL;
-	} else if (*expr != '[') {
+	}
+
+	@<get a wide character@>
+	if (a_wchar != L'[') {
 		snprintf(errbuf, errbuf_size, "bad bracket expression");
 		return NULL;
 	}
@@ -729,36 +736,60 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 	@<allocate initial data@>
 	set_item *items = bracket_expr->items;
 
-	const char *cp, *last;
-	cp = expr + 1;
-	last = expr + expr_len;
-
-	@<special cases at the beginning@>
-
-	const size_t mb_cur_max = MB_CUR_MAX;
-
 	// main loop:
-	for (; cp < last && *cp != ']'; cp++) {
-		if (*cp == '\\' && escapes_allowed) {
-			cp++;
-			if (cp >= last) {
-				snprintf(errbuf, errbuf_size, "unterminated expression");
-				goto fail;
-			}
-			goto get_first_char;	// horror!
+	while (cp < last) {
+		@<get current wide character@>
+		if (at_first_char && cur_wchar == L'^') {
+			bracket_expr->complemented = true;
+
+			// get the next character and then fall through
+			@<get current wide character@>
 		}
 
-		@<process @code{[:...:]} items@>
-		@<process @code{[=...=]} items@>
-		@<process @code{[.X.]} items@>
+		if (! at_first_char && ! escaped && cur_wchar == L']')
+			break;		// all done
 
-get_first_char:	{ /* must have a statement after the label */ }
+		at_first_char = false;
 
-		wint_t first_wc, second_wc;
-		@<get first wide character@>
-		if (*cp == '-') {
-			cp++;
-			@<get second wide character@>
+		if (escaped)
+			goto check_for_range;
+
+		if (cur_wchar == L'[') {
+			@<peek at next wide character@>
+			if (wcschr(L":=.", next_wchar) == NULL)
+				goto check_for_range_2;
+
+			@<get current wide character@>
+			@<process @code{[:...:]} items@>
+			@<process @code{[=...=]} items@>
+			@<process @code{[.X.]} items@>
+		}
+
+	check_for_range:
+
+		@<peek at next wide character@>
+
+	check_for_range_2:
+		if (next_wchar == L'-') {
+			wint_t first_wc, second_wc;
+
+			first_wc = cur_wchar;
+			// consume the '-'
+			cp += n;
+
+			// and get the second character
+			@<peek at next wide character@>
+
+			if (next_wchar == L']') {	// '-' was before terminating ']', treat literally
+				if (! push_wc(first_wc, errbuf, errbuf_size))
+					goto fail;
+				cur_wchar = L'-';
+				goto push_wchar;
+			} else {
+				@<get current wide character@>
+			}
+
+			second_wc = cur_wchar;
 			if (second_wc < first_wc) {
 					snprintf(errbuf, errbuf_size, "invalid range L'%lc' - L'%lc'", first_wc, second_wc);
 					return NULL;
@@ -766,26 +797,25 @@ get_first_char:	{ /* must have a statement after the label */ }
 			if (! push_range_item(bracket_expr, ignore_case, first_wc, second_wc, errbuf, errbuf_size))
 				goto fail;
 
-			cp--;	// compensate for loop
 			continue;
 		}
-		// push first_wc onto wide character list
-		if (! push_wc(first_wc, errbuf, errbuf_size))
-			goto fail;
 
-		cp--;	// compensate for loop
+	push_wchar:
+		// push cur_wchar onto wide character list
+		if (! push_wc(cur_wchar, errbuf, errbuf_size))
+			goto fail;
+	}
+
+	if (cur_wchar != L']') {
+		snprintf(errbuf, errbuf_size, "no closing bracket");
+		goto fail;
 	}
 
 	@<sort wide character list@>
 	@<condense wide character list into @code{RANGE_ITEM}s@>
 	@<condense final array of @code{set_item}s@>
 
-	if (*cp != ']') {
-		snprintf(errbuf, errbuf_size, "no closing bracket");
-		goto fail;
-	}
-
-	*endp = (char *) ++cp;
+	*endp = (char *) cp;
 
 	return bracket_expr;
 
@@ -795,40 +825,66 @@ fail:
 }
 @
 
-An @samp{^} as the first character in the bracket expression complements
-it. To get a literal @samp{-}, it can be the first character in the expression.
-The same applies for a literal @samp{]}.  What if someone gives us
-@samp{[]-]} or @samp{[-]]}?  Yucko. Talk about nerdy stuff. Let's
-try to allow either one. This leads to somewhat grungy code:
+Here are the variables we need when working through
+the expression using wide characters.  Since the GLIBC
+@code{MB_CUR_MAX} macro hides a function call, we
+retrieve the value once.
 
-@<special cases at the beginning@>=
-// special cases at the beginning
-if (*cp == '^') {
-	bracket_expr->complemented = true;
-	cp++;
-}
+@<variables for parsing@>=
+wint_t a_wchar, cur_wchar, next_wchar;
+mbstate_t mbs;
+size_t n;
+const char *cp, *last;
+bool at_first_char = true;
+const size_t mb_cur_max = MB_CUR_MAX;
+bool escaped = false;
+@
 
-if (*cp == '-') {
-	// '-' as first character is taken literally
-	if (! push_range_item(bracket_expr, ignore_case, L'-', L'-', errbuf, errbuf_size))
-		goto fail;
-	cp++;
-	if (*cp == ']') {
-		if (! push_range_item(bracket_expr, ignore_case, L']', L']', errbuf, errbuf_size))
-			goto fail;
-		cp++;
-	}
-} else if (*cp == ']') {
-	// ']' as first character is taken literally
-	if (! push_range_item(bracket_expr, ignore_case, L']', L']', errbuf, errbuf_size))
-		goto fail;
-	cp++;
-	if (*cp == '-') {
-		if (! push_range_item(bracket_expr, ignore_case, L'-', L'-', errbuf, errbuf_size))
-			goto fail;
-		cp++;
-	}
+Initialization is obvious:
+
+@<init variables for parsing@>=
+memset(& mbs, 0, sizeof(mbs));
+cp = expr;
+last = expr + expr_len;
+@
+
+We need to get the current wide character and
+advance @code{cp}. In so doing, we have to handle
+escaped characters as well:
+
+@<get current wide character@>=
+@<get a wide character@>
+if (escapes_allowed && a_wchar == L'\\') {
+	@<get a wide character@>
+	cur_wchar = a_wchar;
+	at_first_char = false;
+	escaped = true;
+} else {
+	escaped = false;
+	cur_wchar = a_wchar;
 }
+@
+
+This actually gets the next wide character:
+
+@<get a wide character@>=
+n = mbrtowc(& a_wchar, cp, mb_cur_max, & mbs);
+if (n == (size_t) -1 || n == (size_t) -2) {
+	snprintf(errbuf, errbuf_size, "invalid multibyte sequence found at: %.4s...", cp);
+	return NULL;
+}
+cp += n;
+@
+
+And we also need to be able to peek ahead:
+
+@<peek at next wide character@>=
+n = mbrtowc(& next_wchar, cp, mb_cur_max, & mbs);
+if (n == (size_t) -1 || n == (size_t) -2) {
+	snprintf(errbuf, errbuf_size, "invalid multibyte sequence found at: %.4s...", cp);
+	return NULL;
+}
+// since we are peeking, we do NOT advance cp
 @
 
 Allocating the various bits of data is the usual @code{malloc()},
@@ -942,43 +998,6 @@ push_wc(wint_t wc, char *errbuf, size_t errbuf_size)
 	wide_chars[wc_inuse++] = wc;
 	return true;
 }
-@
-
-We have to pull the wide characters out of the initial string.
-If we don't see a @samp{-}, there's no range, and only
-@code{first_wc} is pushed onto the end of the array.
-
-@<get first wide character@>=
-mbstate_t mbs;
-size_t count;
-
-memset(& mbs, 0, sizeof(mbs));
-
-count = mbrtowc(& first_wc, cp, mb_cur_max, & mbs);
-if (count == (size_t) -1 || count == (size_t) -2) {
-	snprintf(errbuf, errbuf_size, "invalid multibyte sequence");
-	goto fail;
-}
-cp += count;
-@
-
-We have to check for @samp{\} at this point too.
-Something like @samp{[...\[-\]...]} ought to work.
-
-@<get second wide character@>=
-if (*cp == '\\' && escapes_allowed) {
-	cp++;
-	if (cp >= last) {
-		snprintf(errbuf, errbuf_size, "unterminated expression");
-		goto fail;
-	}
-}
-count = mbrtowc(& second_wc, cp, mb_cur_max, & mbs);
-if (count == (size_t) -1 || count == (size_t) -2) {
-	snprintf(errbuf, errbuf_size, "invalid multibyte sequence");
-	goto fail;
-}
-cp += count;
 @
 
 Once we have the list of wide characters, sorting it is easy:
@@ -1246,13 +1265,16 @@ above and beyond the standard 12 classes available in every locale.
 This means we have to ``nerd through'' the string to find the name,
 copy it, and then look it up with with @code{wctype()}.  Sigh.
 
+Even worse, since we're working with wide characters, we'll
+have to convert what we found back to a multibyte string
+before calling @code{wctype()}.
+
 @<process @code{[:...:]} items@>=
-if (cp + 2 < last && cp[0] == '[' && cp[1] == ':') {
+if (cur_wchar == L':') {
 	size_t count = 0;
 	wctype_t the_type;
 	const char *the_name;
 
-	cp += 2;
 	if (! find_ctype_info(cp, & count, & the_type, & the_name,
 			errbuf, errbuf_size))
 		goto fail;
@@ -1262,10 +1284,11 @@ if (cp + 2 < last && cp[0] == '[' && cp[1] == ':') {
 			the_type, the_name, errbuf, errbuf_size))
 		goto fail;
 
-	cp--;	// compensate for loop
 	continue;
 }
 @
+
+@c ============================
 
 @<helper functions@>=
 /* find_ctype_info --- fill in the info for a character class */
@@ -1278,35 +1301,59 @@ find_ctype_info(const char *cp, size_t *count,
 	size_t len = strlen(cp);
 	const char *begin = cp;
 	const char *last = cp + len;
-	char *namep = NULL;
 	char *name_buf;
+	wchar_t *w_name_buf;
+	wchar_t *namep = NULL;
+	wint_t a_wchar;
+	size_t n;
+	mbstate_t mbs;
+	const size_t mb_cur_max = MB_CUR_MAX;
+
+	w_name_buf = (wchar_t *) malloc((len + 1) * sizeof(wchar_t));
+	if (w_name_buf == NULL) {
+		snprintf(errbuf, errbuf_size, "out of memory for character class name");
+		return false;
+	}
+	memset(w_name_buf, 0, (len + 1) * sizeof(wchar_t));
+
+	for (namep = w_name_buf; cp < last;) {
+		@<get a wide character@>
+		if (a_wchar == L':') {
+			break;
+		}
+		*namep++ = a_wchar;
+	}
+
+	*namep = L'\0';
+	@<get a wide character@>
+	if (a_wchar != L']') {
+		snprintf(errbuf, errbuf_size, "character class name %s missing closing \":]\"", name_buf);
+		free(w_name_buf);
+		return false;
+	}
+	*count = cp - begin;
 
 	name_buf = (char *) malloc(len + 1);
 	if (name_buf == NULL) {
-			snprintf(errbuf, errbuf_size, "out of memory for character class name");
-			return false;
+		snprintf(errbuf, errbuf_size, "out of memory for character class name");
+		free(w_name_buf);
+		return false;
 	}
 	memset(name_buf, 0, len + 1);
 
-	for (namep = name_buf; cp < last && *cp != ':'; cp++)
-		*namep++ = *cp;
-
-	*namep = '\0';
-	if (cp[1] != ']') {
-			snprintf(errbuf, errbuf_size, "character class name %s missing closing \":]\"", name_buf);
-			free(name_buf);
-			return false;
-	}
-	cp += 2;
-	*count = cp - begin;
+	memset(& mbs, 0, sizeof(mbs));
+	const wchar_t *name_start = w_name_buf;
+	wcsrtombs(name_buf, & name_start, len + 1, & mbs);
 
 	*the_type = wctype(name_buf);
 	if (*the_type == 0) {	// not a known class name
-			snprintf(errbuf, errbuf_size, "unknown character class %s", name_buf);
-			free(name_buf);
-			return false;
+		snprintf(errbuf, errbuf_size, "unknown character class %s", name_buf);
+		free(w_name_buf);
+		free(name_buf);
+		return false;
 	}
 	*the_name = name_buf;
+	free(w_name_buf);
 
 	return true;
 }
@@ -1372,19 +1419,29 @@ The first step for an equivalence class is to extract
 the wide character and make sure it has the closing @samp{=]}.
 
 @<process @code{[=...=]} items@>=
-if (cp + 2 < last && cp[0] == '[' && cp[1] == '=') {
-	wint_t first_wc;
+if (cur_wchar == L'=') {
+	wint_t the_wc;
 	const char *begin = cp;
 
-	cp += 2;
-	@<get first wide character@>
-	if (*cp != '=' || cp[1] != ']') {
+	@<get current wide character@>
+	the_wc = cur_wchar;
+
+	@<peek at next wide character@>
+	if (next_wchar != L'=') {
 		snprintf(errbuf, errbuf_size, "invalid equivalence class %.*s", (int) ((cp + 1) - begin), begin);
 		goto fail;
-	} else
-		cp += 1;	// loop will also increment it
+	}
+	// consume the '='
+	@<get current wide character@>
+	@<peek at next wide character@>
+	if (next_wchar != L']') {
+		snprintf(errbuf, errbuf_size, "invalid equivalence class %.*s", (int) ((cp + 1) - begin), begin);
+		goto fail;
+	}
+	// consume the ']'
+	@<get current wide character@>
 
-	if (! add_equivalent_characters(first_wc, errbuf, errbuf_size))
+	if (! add_equivalent_characters(the_wc, errbuf, errbuf_size))
 		goto fail;
 
 	continue;
@@ -1429,26 +1486,36 @@ wide character sets as well. So maybe just leave it alone?
 We allow single character collating elements:
 
 @<process @code{[.X.]} items@>=
-if (cp + 2 < last && cp[0] == '[' && cp[1] == '.') {
-	wint_t first_wc;
+if (cur_wchar == L'.') {
+	wint_t the_wc;
 	const char *begin = cp;
 
-	cp += 2;
-	@<get first wide character@>
-	if (*cp != '.' || cp[1] != ']') {
+	@<get current wide character@>
+	the_wc = cur_wchar;
+
+	@<peek at next wide character@>
+	if (next_wchar != L'.') {
 		snprintf(errbuf, errbuf_size, "invalid collating element %.*s", (int) ((cp + 1) - begin), begin);
 		goto fail;
-	} else
-		cp += 1;	// loop will also increment it
+	}
+	// consume the '.'
+	@<get current wide character@>
+	@<peek at next wide character@>
+	if (next_wchar != L']') {
+		snprintf(errbuf, errbuf_size, "invalid collating element %.*s", (int) ((cp + 1) - begin), begin);
+		goto fail;
+	}
+	// consume the ']'
+	@<get current wide character@>
 
-	if (! push_wc(first_wc, errbuf, errbuf_size))
+	if (! push_wc(the_wc, errbuf, errbuf_size))
 		goto fail;
 
 	continue;
 }
 @
 
-@node
+@node test driver
 @chapter A Test Program And Driver
 
 We need a test program, and a shell script to drive it:

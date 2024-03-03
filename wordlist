@@ -6,6 +6,7 @@ EXPR
 EXPRs
 FIXME
 FORPRINT
+GLIBC
 Haertel
 LC
 NUL
@@ -91,6 +92,7 @@ ifnotinfo
 ifnottex
 ifnotxml
 iftex
+init
 insertcopying
 int
 inuse
@@ -179,6 +181,8 @@ wbuf
 wc
 wchar
 wcs
+wcschr
+wcsrtombs
 wcsxfrm
 wctype
 wint

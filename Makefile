@@ -28,7 +28,7 @@ btest.c: $(TWJRSOURCE)
 	./jrtangle $(TWJRSOURCE)
 
 btest: $(OBJ) btest.o
-	gcc $(OBJ) btest.o -o btest
+	gcc $(CFLAGS) $(OBJ) btest.o -o btest
 
 $(SOURCE): $(TWJRSOURCE)
 	./jrtangle $(TWJRSOURCE)
@@ -38,3 +38,10 @@ clean:
 
 spell:
 	spell $(TWJRSOURCE) | LC_ALL=C sort -u | LC_ALL=C comm -23 - wordlist
+
+check: btest
+	./runtests.sh > _tests ; \
+	if cmp -s tests.good _tests ; \
+	then	rm _tests; \
+	else	diff -u tests.good _tests | more ; \
+	fi
