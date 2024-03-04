@@ -1,3 +1,7 @@
+2024-03-04         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* runtests.sh: New file.
+
 2024-03-03         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* setsearch.twjr: Rewrite parsing code per feedback from Mike.
