@@ -260,10 +260,10 @@ of matching multibyte-encoded characters.
 
 As part of the discussion between Mike and myself, I offered a rough draft of a
 data structure to use for quickly seeing if a character matches a @dfn{bracket expression},
-which is a construct used with regular expressions to represent sets of different
+which is a construct used within regular expressions to represent sets of different
 kinds of characters to be matched.
 
-The ideas for this data structure and how to use it have been bouncing around in
+The ideas for this data structure and how to use it had been bouncing around in
 my head for some time. This @value{DOCUMENT} presents the design and implementation
 of a sublibrary (so to speak) for dealing with bracket expressions.
 
@@ -278,7 +278,8 @@ make
 @end example
 
 @noindent
-You will need to have @TeX{} and Texinfo installed,
+In order to format the document,
+you will need to have @TeX{} and Texinfo installed,
 including @command{texi2pdf}.  Or you can ask me for
 a PDF, if necessary.
 
@@ -370,13 +371,13 @@ escape characters within the bracket expression, such as @code{[ab\]d]},
 which is needed for the @command{awk} language.
 
 @item bool ignore_case
-This should be set to true if case should be ignored; e.g., @samp{a} and @samp{A}
+This should be set to @code{true} if case should be ignored; e.g., @samp{a} and @samp{A}
 should be treated equivalently.
 
 @item char *errbuf
 The address of a buffer into which @code{bracket_expr_create()} will
 write a message upon failure.
-The message will@footnote{Eventually.}
+The message will
 already have been translated by @code{gettext()}.
 
 @item size_t errbuf_size
@@ -385,7 +386,7 @@ The size of @code{errbuf}'s buffer.
 @c end nested table
 
 @item bool bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char)
-Return true if @code{the_char} is found in the set described by
+Return @code{true} if @code{the_char} is found in the set described by
 @code{brack_expr}, @code{false} otherwise.
 
 @item bool bracket_expr_free(const BRACKET_EXPR *brack_expr)
@@ -405,22 +406,19 @@ work its way through the entire text of the regexp.
 As soon as @samp{[} is seen, the compilation phase can call
 @code{bracket_expr_create()}, and then continue scanning at @code{*end}.
 
-The source code starts out with the usual includes,
+The source code starts out with a copyright statement and the usual includes,
 followed by the other things one might expect:
 
 @(bracketexpr.c@)=
 @<Copyright statement@>
 
 @<includes@>
-
 #include "bracketexpr.h"	// for the BRACKET_EXPR typedef
+@<deal with @code{gettext()}@>
 
 @<data structures@>
-
 @<global data@>
-
 @<helper functions@>
-
 @<API functions@>
 @
 
@@ -442,6 +440,22 @@ We include the standard header files that we'll need:
 #include <wchar.h>
 #include <wctype.h>
 #include <locale.h>
+@
+
+Since we want the error messages to be translatable,
+we have deal with @code{gettext()}:
+
+@<deal with @code{gettext()}@>=
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
+#ifdef HAVE_GETTEXT_H
+#include "gettext.h"
+#define _(x) gettext(x)
+#else
+#define _(x) x
+#endif
 @
 
 @node The Data Structures
@@ -559,7 +573,7 @@ keep things simple. The @code{CTYPE_ITEM}s are checked first, since
 each one can match multiple characters with a single function call:
 
 @<helper functions@>=
-@<item comparison function@>
+@<item comparison functions@>
 
 /* is_found --- return true if the character is found */
 
@@ -615,7 +629,7 @@ we're comparing array elements against each other. When
 searching, we compare elements one at a time against a key.
 The sorting comparison is more elaborate:
 
-@<helper functions@>=
+@<item comparison functions@>=
 /* item_compare_for_sorting --- compare two set_items */
 
 static int
@@ -641,7 +655,7 @@ The searching function is simpler.  POSIX tells us that the first
 argument is the key and the second is the array element being
 compared.
 
-@<item comparison function@>=
+@<item comparison functions@>=
 /* item_compare_for_searching --- compare two set_items */
 
 static int
@@ -708,6 +722,27 @@ once they've been built, we get to the hard part, which
 is transforming the text of the bracket expression
 into the data structure.
 
+For safety's sake, we work through the bracket expression
+one wide character at a time. As we do so, we have to take
+into account that characters may be escaped with @samp{\}.
+We also have to be able to peek ahead in the stream one or two
+wide characters.  To that end, there are three wide characters
+used in this code:
+
+@table @code
+@item a_wchar
+This is the next physical wide character to come out
+of the input byte string. It might be @samp{\} or something
+else.
+
+@item cur_wchar
+This is the current wide character, which may have been
+escaped. If it was, @code{escaped} will be @code{true}.
+
+@item next_wchar
+This is the next wide character, found via lookahead.
+@end table
+
 @<API functions@>=
 /* bracket_expr_create --- parse the expression and build a BRACKET_EXPR */
 
@@ -723,13 +758,13 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 	@<init variables for parsing@>
 
 	if (expr == NULL || endp == NULL) {
-		snprintf(errbuf, errbuf_size, "bad pointers received");
+		snprintf(errbuf, errbuf_size, _("bad pointers received"));
 		return NULL;
 	}
 
 	@<get a wide character@>
 	if (a_wchar != L'[') {
-		snprintf(errbuf, errbuf_size, "bad bracket expression");
+		snprintf(errbuf, errbuf_size, _("bad bracket expression"));
 		return NULL;
 	}
 
@@ -780,7 +815,8 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 			// and get the second character
 			@<peek at next wide character@>
 
-			if (next_wchar == L']') {	// '-' was before terminating ']', treat literally
+			if (next_wchar == L']') {
+				// '-' was before terminating ']', treat literally
 				if (! push_wc(first_wc, errbuf, errbuf_size))
 					goto fail;
 				cur_wchar = L'-';
@@ -791,7 +827,7 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 
 			second_wc = cur_wchar;
 			if (second_wc < first_wc) {
-					snprintf(errbuf, errbuf_size, "invalid range L'%lc' - L'%lc'", first_wc, second_wc);
+					snprintf(errbuf, errbuf_size, _("invalid range L'%lc' - L'%lc'"), first_wc, second_wc);
 					return NULL;
 			}
 			if (! push_range_item(bracket_expr, ignore_case, first_wc, second_wc, errbuf, errbuf_size))
@@ -807,7 +843,7 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 	}
 
 	if (cur_wchar != L']') {
-		snprintf(errbuf, errbuf_size, "no closing bracket");
+		snprintf(errbuf, errbuf_size, _("no closing bracket"));
 		goto fail;
 	}
 
@@ -870,7 +906,7 @@ This actually gets the next wide character:
 @<get a wide character@>=
 n = mbrtowc(& a_wchar, cp, mb_cur_max, & mbs);
 if (n == (size_t) -1 || n == (size_t) -2) {
-	snprintf(errbuf, errbuf_size, "invalid multibyte sequence found at: %.4s...", cp);
+	snprintf(errbuf, errbuf_size, _("invalid multibyte sequence found at: %.4s..."), cp);
 	return NULL;
 }
 cp += n;
@@ -881,7 +917,7 @@ And we also need to be able to peek ahead:
 @<peek at next wide character@>=
 n = mbrtowc(& next_wchar, cp, mb_cur_max, & mbs);
 if (n == (size_t) -1 || n == (size_t) -2) {
-	snprintf(errbuf, errbuf_size, "invalid multibyte sequence found at: %.4s...", cp);
+	snprintf(errbuf, errbuf_size, _("invalid multibyte sequence found at: %.4s..."), cp);
 	return NULL;
 }
 // since we are peeking, we do NOT advance cp
@@ -898,7 +934,7 @@ check for errors, and @code{memset()} to zero:
 @<allocate @code{bracket_expr}@>=
 BRACKET_EXPR *bracket_expr = (BRACKET_EXPR *) malloc(sizeof(BRACKET_EXPR));
 if (bracket_expr == NULL) {
-	snprintf(errbuf, errbuf_size, "out of memory for expr");
+	snprintf(errbuf, errbuf_size, _("out of memory for expr"));
 	return NULL;
 }
 memset(bracket_expr, 0, sizeof(BRACKET_EXPR));
@@ -908,7 +944,7 @@ memset(bracket_expr, 0, sizeof(BRACKET_EXPR));
 #define INITIAL_SIZE 10
 bracket_expr->items = (set_item *) malloc(INITIAL_SIZE * sizeof(set_item));
 if (bracket_expr->items == NULL) {
-	snprintf(errbuf, errbuf_size, "out of memory for items");
+	snprintf(errbuf, errbuf_size, _("out of memory for items"));
 	goto fail;
 }
 memset(bracket_expr->items, 0, INITIAL_SIZE * sizeof(set_item));
@@ -935,7 +971,7 @@ one by one. In this case, the initial contents would be
 to @code{bracket_expr->items} and is dealt with later.
 
 Once the array of wide characters is built, we next sort it,
-attaining @code{aabcdefpz}. It can be uniqued and turned
+obtaining @code{aabcdefpz}. It can be uniqued and turned
 into one or more ranges in the final step, yielding
 first @code{abcdefpz} and finally @code{a-fpz}.
 
@@ -964,7 +1000,7 @@ array of wide characters, and initialize the memory.
 if (wide_chars == NULL) {	// first time through
 	wide_chars = (wint_t *) malloc(INITIAL_SIZE * sizeof(wint_t));
 	if (wide_chars == NULL) {
-		snprintf(errbuf, errbuf_size, "out of memory for wide characters");
+		snprintf(errbuf, errbuf_size, _("out of memory for wide characters"));
 		goto fail;
 	}
 	wc_allocated = INITIAL_SIZE;
@@ -988,7 +1024,7 @@ push_wc(wint_t wc, char *errbuf, size_t errbuf_size)
 		wint_t *new_data = (wint_t *) realloc(wide_chars, new_amount * sizeof(wint_t));
 
 		if (new_data == NULL) {
-			snprintf(errbuf, errbuf_size, "out of memory for more wide characters");
+			snprintf(errbuf, errbuf_size, _("out of memory for more wide characters"));
 			return false;
 		}
 		memset(new_data + wc_allocated, 0, wc_allocated * sizeof(wint_t));
@@ -1009,7 +1045,7 @@ qsort(wide_chars, wc_inuse, sizeof(wint_t), wint_compare);
 @noindent
 The comparison function is trivial:
 
-@<helper functions@>=
+@<item comparison functions@>=
 /* wint_compare --- compare two wint values for qsort */
 
 static int
@@ -1041,14 +1077,14 @@ for (i = 0, j = 1; j < wc_inuse; i++, j++) {
 		for (int k = j + 1; k < wc_inuse; j++, k++) {
 			wide_chars[j] = wide_chars[k];
 		}
-		wide_chars[j] = 0;
+		wide_chars[j] = L'\0';
 
 		wc_inuse--;
 		j = i;
 		i--;	// keep searching from same spot
 	}
 }
-wide_chars[wc_inuse] = 0;	// not strictly necessary, but doesn't hurt
+wide_chars[wc_inuse] = L'\0';	// not strictly necessary, but doesn't hurt
 @
 
 Once we have a sorted and uniqued list of wide characters,
@@ -1124,7 +1160,7 @@ if (bracket_expr->nelems + 1 >= bracket_expr->allocated) {
 	set_item *new_set = (set_item *) realloc(bracket_expr->items,
 										new_amount * sizeof(set_item));
 	if (new_set == NULL) {
-		snprintf(errbuf, errbuf_size, "no memory for more set items");
+		snprintf(errbuf, errbuf_size, _("no memory for more set items"));
 		return false;
 	}
 	memset(new_set + old_amount, 0, old_amount * sizeof(set_item));
@@ -1165,11 +1201,11 @@ end up with the following possibilities:
 Exact duplicate ranges:
 
 @example
-+---+---+
-| a | d |        +---+---+
-+---+---+   ==>  | a | d |
-| a | d |        +---+---+
-+---+---+
+          +---+---+
+item[i]   | a | d |        +---+---+
+          +---+---+   ==>  | a | d |   item[i]
+item[j]   | a | d |        +---+---+
+          +---+---+
 @end example
 
 @noindent
@@ -1179,11 +1215,11 @@ The duplicate should be removed.
 Adjacent ranges.
 
 @example
-+---+---+
-| a | d |                +---+---+
-+---+---+---+----   ==>  | a | h |
-        | e | h |        +---+---+
-        +---+---+
+          +---+---+
+item[i]   | a | d |                +---+---+
+          +---+---+---+----   ==>  | a | h |   item[i]
+item[j]           | e | h |        +---+---+
+                  +---+---+
 @end example
 
 @noindent
@@ -1195,11 +1231,11 @@ be removed.
 Completely overlapping:
 
 @example
-+----------+
-| abcdefhi |          +---+---+
-+----------+    ===>  | a | i |
-|    def   |          +---+---+
-+----------+
+          +----------+
+item[i]   | abcdefhi |          +---+---+
+          +----------+    ===>  | a | i |   item[i]
+item[j]   |    def   |          +---+---+
+          +----------+
 @end example
 
 @noindent
@@ -1209,11 +1245,11 @@ The second one should be removed.
 Partially overlapping on the left:
 
 @example
-+----------+
-| abcdef   |         +---+---+
-+----------+    ===> | a | h |
-|    defgh |         +---+---+
-+----------+
+          +----------+
+item[i]   | abcdef   |         +---+---+
+          +----------+    ===> | a | h |   item[i]
+item[i]   |    defgh |         +---+---+
+          +----------+
 @end example
 
 @noindent
@@ -1266,23 +1302,29 @@ This means we have to ``nerd through'' the string to find the name,
 copy it, and then look it up with with @code{wctype()}.  Sigh.
 
 Even worse, since we're working with wide characters, we'll
-have to convert what we found back to a multibyte string
+have to convert what we find back to a multibyte string
 before calling @code{wctype()}.
 
 @<process @code{[:...:]} items@>=
 if (cur_wchar == L':') {
 	size_t count = 0;
 	wctype_t the_type;
-	const char *the_name;
+	const char *the_name = NULL;
 
-	if (! find_ctype_info(cp, & count, & the_type, & the_name,
-			errbuf, errbuf_size))
+	if (! find_ctype_info(cp, last - cp, & count, & the_type, & the_name,
+			errbuf, errbuf_size)) {
+		if (the_name != NULL)
+			free((void *) the_name);
 		goto fail;
+	}
 
 	cp += count;
 	if (! push_ctype_item(bracket_expr, ignore_case,
-			the_type, the_name, errbuf, errbuf_size))
+			the_type, the_name, errbuf, errbuf_size)) {
+		if (the_name != NULL)
+			free((void *) the_name);
 		goto fail;
+	}
 
 	continue;
 }
@@ -1294,11 +1336,10 @@ if (cur_wchar == L':') {
 /* find_ctype_info --- fill in the info for a character class */
 
 static bool
-find_ctype_info(const char *cp, size_t *count,
+find_ctype_info(const char *cp, size_t len, size_t *count,
                 wctype_t *the_type, const char **the_name,
                 char *errbuf, size_t errbuf_size)
 {
-	size_t len = strlen(cp);
 	const char *begin = cp;
 	const char *last = cp + len;
 	char *name_buf;
@@ -1311,7 +1352,7 @@ find_ctype_info(const char *cp, size_t *count,
 
 	w_name_buf = (wchar_t *) malloc((len + 1) * sizeof(wchar_t));
 	if (w_name_buf == NULL) {
-		snprintf(errbuf, errbuf_size, "out of memory for character class name");
+		snprintf(errbuf, errbuf_size, _("out of memory for character class name"));
 		return false;
 	}
 	memset(w_name_buf, 0, (len + 1) * sizeof(wchar_t));
@@ -1327,7 +1368,7 @@ find_ctype_info(const char *cp, size_t *count,
 	*namep = L'\0';
 	@<get a wide character@>
 	if (a_wchar != L']') {
-		snprintf(errbuf, errbuf_size, "character class name %s missing closing \":]\"", name_buf);
+		snprintf(errbuf, errbuf_size, _("character class name %s missing closing \":]\""), name_buf);
 		free(w_name_buf);
 		return false;
 	}
@@ -1335,7 +1376,7 @@ find_ctype_info(const char *cp, size_t *count,
 
 	name_buf = (char *) malloc(len + 1);
 	if (name_buf == NULL) {
-		snprintf(errbuf, errbuf_size, "out of memory for character class name");
+		snprintf(errbuf, errbuf_size, _("out of memory for character class name"));
 		free(w_name_buf);
 		return false;
 	}
@@ -1347,7 +1388,7 @@ find_ctype_info(const char *cp, size_t *count,
 
 	*the_type = wctype(name_buf);
 	if (*the_type == 0) {	// not a known class name
-		snprintf(errbuf, errbuf_size, "unknown character class %s", name_buf);
+		snprintf(errbuf, errbuf_size, _("unknown character class %s"), name_buf);
 		free(w_name_buf);
 		free(name_buf);
 		return false;
@@ -1389,7 +1430,7 @@ push_ctype_item(BRACKET_EXPR *bracket_expr, bool ignore_case,
 		new_item.wtype = upper;
 		new_item.type_name = strdup(upper_s);
 		if (new_item.type_name == NULL) {
-			snprintf(errbuf, errbuf_size, "out of memory for character class name in item");
+			snprintf(errbuf, errbuf_size, _("out of memory for character class name in item"));
 			return false;
 		}
 		bracket_expr->items[bracket_expr->nelems++] = new_item;
@@ -1397,7 +1438,7 @@ push_ctype_item(BRACKET_EXPR *bracket_expr, bool ignore_case,
 		new_item.wtype = lower;
 		new_item.type_name = strdup(lower_s);
 		if (new_item.type_name == NULL) {
-			snprintf(errbuf, errbuf_size, "out of memory for character class name in item");
+			snprintf(errbuf, errbuf_size, _("out of memory for character class name in item"));
 			return false;
 		}
 		bracket_expr->items[bracket_expr->nelems++] = new_item;
@@ -1428,18 +1469,18 @@ if (cur_wchar == L'=') {
 
 	@<peek at next wide character@>
 	if (next_wchar != L'=') {
-		snprintf(errbuf, errbuf_size, "invalid equivalence class %.*s", (int) ((cp + 1) - begin), begin);
+		snprintf(errbuf, errbuf_size, _("invalid equivalence class %.*s"), (int) ((cp + 1) - begin), begin);
 		goto fail;
 	}
 	// consume the '='
-	@<get current wide character@>
+	cp += n;
 	@<peek at next wide character@>
 	if (next_wchar != L']') {
-		snprintf(errbuf, errbuf_size, "invalid equivalence class %.*s", (int) ((cp + 1) - begin), begin);
+		snprintf(errbuf, errbuf_size, _("invalid equivalence class %.*s"), (int) ((cp + 1) - begin), begin);
 		goto fail;
 	}
 	// consume the ']'
-	@<get current wide character@>
+	cp += n;
 
 	if (! add_equivalent_characters(the_wc, errbuf, errbuf_size))
 		goto fail;
@@ -1495,18 +1536,18 @@ if (cur_wchar == L'.') {
 
 	@<peek at next wide character@>
 	if (next_wchar != L'.') {
-		snprintf(errbuf, errbuf_size, "invalid collating element %.*s", (int) ((cp + 1) - begin), begin);
+		snprintf(errbuf, errbuf_size, _("invalid collating element %.*s"), (int) ((cp + 1) - begin), begin);
 		goto fail;
 	}
 	// consume the '.'
-	@<get current wide character@>
+	cp += n;
 	@<peek at next wide character@>
 	if (next_wchar != L']') {
-		snprintf(errbuf, errbuf_size, "invalid collating element %.*s", (int) ((cp + 1) - begin), begin);
+		snprintf(errbuf, errbuf_size, _("invalid collating element %.*s"), (int) ((cp + 1) - begin), begin);
 		goto fail;
 	}
 	// consume the ']'
-	@<get current wide character@>
+	cp += n;
 
 	if (! push_wc(the_wc, errbuf, errbuf_size))
 		goto fail;
@@ -1612,7 +1653,7 @@ while ((c = getopt(argc, argv, "SFdeiq")) != -1) {
 
 if (   (! expect_success && ! expect_failure)
     || (expect_success && expect_failure)) {
-	fprintf(stderr, "You must give only one of -S or -F.\n");
+	fprintf(stderr, "You must give exactly one of -S or -F.\n");
 	usage(argv[0]);
 }
 else if (optind + 2 > argc)	// no expr or no string provided
@@ -1660,10 +1701,11 @@ if (! quiet)
 	printf("expect %s: %s: %s\n", expect_success ? "success" : "failure",
 			argv[optind], argv[optind+1]);
 
+int mb_cur_max = MB_CUR_MAX;
 for (cp = argv[optind + 1]; *cp != '\0';) {
 	size_t count;
 
-	count = mbrtowc(& wc, cp, MB_CUR_MAX, & mbs);
+	count = mbrtowc(& wc, cp, mb_cur_max, & mbs);
 	if (count == (size_t) -1 || count == (size_t) -2) {
 		if (expect_success) {
 			fprintf(stderr, "invalid multibyte sequence detected\n");
@@ -1736,6 +1778,42 @@ We rely on the @file{Makefile} to save the results and compare them
 to known good results.
 
 For now, the test data is not included in this document.
+
+@node Commentary
+@chapter Commentary
+
+@itemize @bullet
+@item
+The idea for the data structure was undoubtedly inspired by Russ Cox's
+@code{libre2}, which uses a balanced binary tree of ranges for handling
+bracket expressions.
+
+In terms of searching, I expect the two data structures have the same
+``big O'' complexity; my data structure saves the additional space overhead
+of left and right subtree pointers.  Inserting into a balanced binary
+tree is more complicated than my method of building the structure and then
+sorting and uniquing it; however the binary tree won't insert something
+that is already there.
+
+In practice, I think it doesn't matter, as (a) most bracket expressions
+are very simple and not pathological, and (b) when processing lots of
+data, the amount of time spent building the data structure (compiling
+the regular expression) gets lost down in the noise compared to the
+amount of time spent executing it.
+
+@item
+One thing I've noticed a lot about Literate Programming is that
+inlined chunks end up being used when more conventional programming
+would dictate the use of a function (in C or @command{awk}) or
+a macro (in C).  In particular, I sometimes miss the ability
+to parameterize the objects a code chunk operates upon.
+
+It then becomes a question: once the code is complete, should I
+go back and modify things to use macros or functions? I think it
+depends upon if the generated code will be what's maintained
+going forward, or if the literate code will remain the main ``source''.
+Thus, at least for now, the question remains open.
+@end itemize
 
 @node Code Chunk Summaries
 @appendix Code Chunk Summaries
