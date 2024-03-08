@@ -1,11 +1,13 @@
 Awk
 Ayalon
 BUFSIZ
+CONFIG
 CTYPE
 EXPR
 EXPRs
 FIXME
 FORPRINT
+GETTEXT
 GLIBC
 Haertel
 LC
@@ -46,6 +48,7 @@ cd
 chmod
 cindex
 com
+config
 const
 cp
 cplusplus
@@ -93,6 +96,7 @@ ifnottex
 ifnotxml
 iftex
 init
+inlined
 insertcopying
 int
 inuse
@@ -103,6 +107,7 @@ jrweave
 kbd
 lc
 len
+libre
 literallayout
 malloc
 mbrtowc
