@@ -1,3 +1,9 @@
+2024-08-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* setsearch.twjr: For invalid multibyte sequences, just
+	treat each byte as a separate code point.
+	Bump version and update date.
+
 2024-03-08         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* setsearch.twjr: Translate error messages.  A number of fixes and

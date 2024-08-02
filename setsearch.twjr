@@ -18,8 +18,8 @@
 @c This sets the edition of the document.
 
 @c These apply across the board.
-@set UPDATE-MONTH March, 2024
-@set EDITION 0.3
+@set UPDATE-MONTH August, 2024
+@set EDITION 0.4
 
 @set TITLE Efficient Searching of Large Character Sets
 @set SHORTTITLE Searching Character Sets
@@ -906,8 +906,10 @@ This actually gets the next wide character:
 @<get a wide character@>=
 n = mbrtowc(& a_wchar, cp, mb_cur_max, & mbs);
 if (n == (size_t) -1 || n == (size_t) -2) {
-	snprintf(errbuf, errbuf_size, _("invalid multibyte sequence found at: %.4s..."), cp);
-	return NULL;
+	// treat bad bytes as individual code points,
+	// even if invalid and just skip over them.
+	a_wchar = *cp & 0xFF;
+	n = 1;
 }
 cp += n;
 @
@@ -917,8 +919,10 @@ And we also need to be able to peek ahead:
 @<peek at next wide character@>=
 n = mbrtowc(& next_wchar, cp, mb_cur_max, & mbs);
 if (n == (size_t) -1 || n == (size_t) -2) {
-	snprintf(errbuf, errbuf_size, _("invalid multibyte sequence found at: %.4s..."), cp);
-	return NULL;
+	// here too, treat bad bytes as individual code points,
+	// even if invalid and just skip over them.
+	a_wchar = *cp & 0xFF;
+	n = 1;
 }
 // since we are peeking, we do NOT advance cp
 @
@@ -1707,15 +1711,10 @@ for (cp = argv[optind + 1]; *cp != '\0';) {
 
 	count = mbrtowc(& wc, cp, mb_cur_max, & mbs);
 	if (count == (size_t) -1 || count == (size_t) -2) {
-		if (expect_success) {
-			fprintf(stderr, "invalid multibyte sequence detected\n");
-			@<dump the data if needed@>
-			exit(EXIT_FAILURE);
-		} else {
-			cp++;	// skip over it and hope;
-			memset(& mbs, 0, sizeof(mbs));	// reset the state
-			continue;
-		}
+		count = 1;
+		wc = *cp & 0xFF;
+		cp++;	// skip over it and hope;
+		memset(& mbs, 0, sizeof(mbs));	// reset the state
 	} else
 		cp += count;
 
