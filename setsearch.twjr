@@ -318,10 +318,11 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
                                         bool escapes_allowed,
                                         bool ignore_case,
                                         char *errbuf,
-                                        size_t errbuf_size);
+                                        size_t errbuf_size,
+                                        size_t mb_cur_max);
 
 bool bracket_expr_match(const BRACKET_EXPR *brack_expr,
-                        int32_t the_char);
+                        int32_t the_char, bool isvalid);
 
 bool bracket_expr_free(const BRACKET_EXPR *brack_expr);
 
@@ -342,7 +343,8 @@ The routines and what they do are as follows:
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool escapes_allowed,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool ignore_case,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char *errbuf,
-@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t errbuf_size)
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t errbuf_size,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t mb_cur_max)
 This function parses the bracket expression, and if successful, returns
 a pointer to an opaque @code{BRACKET_EXPR} structure to be used by other
 routines. Upon failure, it returns @code{NULL}.  The parameters are:
@@ -382,12 +384,18 @@ already have been translated by @code{gettext()}.
 
 @item size_t errbuf_size
 The size of @code{errbuf}'s buffer.
+
+@item size_t mb_cur_max
+The value of @code{MB_CUR_MAX}.  We don't use that constant
+directly since on GLIBC systems (at least) it hides a function call.
 @end table
 @c end nested table
 
-@item bool bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char)
+@item bool bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char, bool isvalid)
 Return @code{true} if @code{the_char} is found in the set described by
-@code{brack_expr}, @code{false} otherwise.
+@code{brack_expr}, @code{false} otherwise. @code{isvalid} indicates the character
+is valid in the current character set. This can be determined from the return
+value of @code{mbrtowc()}.
 
 @item bool bracket_expr_free(const BRACKET_EXPR *brack_expr)
 Release the storage used by @code{brack_expr}. Return @code{false}
@@ -508,6 +516,7 @@ struct _bracket_expr {
 	bool	complemented;		// For [^...] sets
 	bool	escapes_allowed;	// For dumping
 	bool	ignore_case;		// For dumping
+	size_t  mb_cur_max;         // Needed for parsing and matching
 	size_t	nelems;				// Number of elements in use
 	size_t	allocated;			// Number allocated.
 	set_item *items;			// Array of items
@@ -531,12 +540,12 @@ first.
 /* bracket_expr_match --- see if a character matches the expression */
 
 bool
-bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char)
+bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char, bool isvalid)
 {
 	if (brack_expr == NULL)
 		return false;
 
-	bool found = is_found(brack_expr, the_char);
+	bool found = is_found(brack_expr, the_char, isvalid);
 	if (brack_expr->complemented)
 		found = ! found;		// reverse sense of the match
 
@@ -569,8 +578,7 @@ bracket_expr_free(const BRACKET_EXPR *brack_expr)
 @section Searching For A Character
 
 The actual searching is separate from the ``is complemented'' test to
-keep things simple. The @code{CTYPE_ITEM}s are checked first, since
-each one can match multiple characters with a single function call:
+keep things simple.
 
 @<helper functions@>=
 @<item comparison functions@>
@@ -578,26 +586,80 @@ each one can match multiple characters with a single function call:
 /* is_found --- return true if the character is found */
 
 static bool
-is_found(const BRACKET_EXPR *brack_expr, int32_t the_char)
+is_found(const BRACKET_EXPR *brack_expr, int32_t the_char, bool is_valid)
 {
 	set_item *set = brack_expr->items;
 	int i;
 
-	for (i = 0; i < brack_expr->nelems; i++) {
-		// linear search of ctype items
-		if (set[i].item_type == RANGE_ITEM)
-			break;
+	@<Search for a @code{CTYPE_ITEM}@>
+	@<Search for a @code{RANGE_ITEM}@>
+}
+@
 
-		assert(set[i].item_type == CTYPE_ITEM);
-		if (iswctype(the_char, set[i].wtype))
-			return true;
-	}
+The @code{CTYPE_ITEM}s are checked first, since
+each one can match multiple characters with a single function call:
 
-	if (i >= brack_expr->nelems)
-		return false;
+@<Search for a @code{CTYPE_ITEM}@>=
+for (i = 0; i < brack_expr->nelems; i++) {
+	// linear search of ctype items
+	if (set[i].item_type == RANGE_ITEM)
+		break;
 
-	assert(set[i].item_type == RANGE_ITEM);
+	assert(set[i].item_type == CTYPE_ITEM);
+	if (iswctype(the_char, set[i].wtype))
+		return true;
+}
 
+if (i >= brack_expr->nelems)
+	return false;
+@
+
+Searching through the range items has a wrinkle or two.
+After running some tests,
+comparing GNU @code{dfa}, GNU @code{regex}, the One True Awk, GoAwk, MKS Awk,
+and Busybox Awk, we came to the following conclusions as to the behavior that
+we wanted:
+
+@itemize @bullet
+@item
+In a single-byte locale, the input character is always searched
+for, even if it's not valid in the current character set.
+
+@item
+In a multibyte locale, the situation is messier:
+
+@c nested list
+@itemize ---
+@item
+An invalid character can be given inside a character set, e.g. @code{[a\376%]}.
+(This is a parse time condition.)
+However, that same value in the input does not match.
+(This is a search time condition.)
+
+@item
+An invalid character does not match an inverted character set.
+E.g., @code{'\376'} does not match @code{[^a-z]}.
+
+@item
+An invalid character does not match within a range even if
+numerically it's within the range. (Search time condition.)
+If one or both of the endpoints within the range are invalid,
+it's an invalid set. (Parse time condition.)
+@end itemize
+@c end nested list
+@end itemize
+
+@noindent
+We will deal with the parse time conditions later when we build
+the bracket expression.
+
+It turns out that the multibyte ``does not match'' conditions all
+reduce to ``is the character not valid?''  If so, we can simply return
+@code{false} instead of trying to do a search.
+
+@<Search for a @code{RANGE_ITEM}@>=
+assert(set[i].item_type == RANGE_ITEM);
+if (brack_expr->mb_cur_max == 1 || is_valid) {
 	// binary search to see if we have it
 	set_item *found;
 	set_item key;
@@ -608,7 +670,8 @@ is_found(const BRACKET_EXPR *brack_expr, int32_t the_char)
 					sizeof(set_item), item_compare_for_searching);
 
 	return found != NULL;
-}
+} else
+	return false;
 @
 
 We need the header file for assertions:
@@ -699,6 +762,7 @@ bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
 	fprintf(fp, "complemented = %s\n", boolval[!! brack_expr->complemented]);
 	fprintf(fp, "escapes_allowed = %s\n", boolval[!! brack_expr->escapes_allowed]);
 	fprintf(fp, "ignore_case = %s\n", boolval[!! brack_expr->ignore_case]);
+	fprintf(fp, "mb_cur_max = %lu\n", brack_expr->mb_cur_max);
 
 	set_item *set = brack_expr->items;
 	for (int i = 0; i < brack_expr->nelems; i++) {
@@ -750,9 +814,10 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
                                         size_t expr_len,
                                         char **endp,
                                         bool escapes_allowed,
-										bool ignore_case,
+                                        bool ignore_case,
                                         char *errbuf,
-                                        size_t errbuf_size)
+                                        size_t errbuf_size,
+                                        size_t mb_cur_max)
 {
 	@<variables for parsing@>
 	@<init variables for parsing@>
@@ -805,6 +870,8 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 		@<peek at next wide character@>
 
 	check_for_range_2:
+		first_range_char_invalid = invalid;
+
 		if (next_wchar == L'-') {
 			wint_t first_wc, second_wc;
 
@@ -814,6 +881,11 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 
 			// and get the second character
 			@<peek at next wide character@>
+
+			if (first_range_char_invalid || invalid /* 2nd range char */) {
+				snprintf(errbuf, errbuf_size, _("invalid start or end of range character"));
+				return NULL;
+			}
 
 			if (next_wchar == L']') {
 				// '-' was before terminating ']', treat literally
@@ -872,8 +944,9 @@ mbstate_t mbs;
 size_t n;
 const char *cp, *last;
 bool at_first_char = true;
-const size_t mb_cur_max = MB_CUR_MAX;
 bool escaped = false;
+bool invalid = false;
+bool first_range_char_invalid = false;
 @
 
 Initialization is obvious:
@@ -909,7 +982,10 @@ if (n == (size_t) -1 || n == (size_t) -2) {
 	// treat bad bytes as individual code points,
 	// even if invalid and just skip over them.
 	a_wchar = *cp & 0xFF;
+	invalid = true;
 	n = 1;
+	// after an invalid conversion, reinitialize mbs
+	memset(& mbs, 0, sizeof(mbs));
 }
 cp += n;
 @
@@ -922,7 +998,10 @@ if (n == (size_t) -1 || n == (size_t) -2) {
 	// here too, treat bad bytes as individual code points,
 	// even if invalid and just skip over them.
 	a_wchar = *cp & 0xFF;
+	invalid = true;
 	n = 1;
+	// after an invalid conversion, reinitialize mbs
+	memset(& mbs, 0, sizeof(mbs));
 }
 // since we are peeking, we do NOT advance cp
 @
@@ -956,6 +1035,7 @@ bracket_expr->allocated = INITIAL_SIZE;
 bracket_expr->nelems = 0;
 bracket_expr->escapes_allowed = escapes_allowed;
 bracket_expr->ignore_case = ignore_case;
+bracket_expr->mb_cur_max = mb_cur_max;
 @
 
 We will come back to the various kinds of items such as @code{[:alpha:]} that
@@ -1316,7 +1396,7 @@ if (cur_wchar == L':') {
 	const char *the_name = NULL;
 
 	if (! find_ctype_info(cp, last - cp, & count, & the_type, & the_name,
-			errbuf, errbuf_size)) {
+			errbuf, errbuf_size, mb_cur_max)) {
 		if (the_name != NULL)
 			free((void *) the_name);
 		goto fail;
@@ -1334,15 +1414,13 @@ if (cur_wchar == L':') {
 }
 @
 
-@c ============================
-
 @<helper functions@>=
 /* find_ctype_info --- fill in the info for a character class */
 
 static bool
 find_ctype_info(const char *cp, size_t len, size_t *count,
                 wctype_t *the_type, const char **the_name,
-                char *errbuf, size_t errbuf_size)
+                char *errbuf, size_t errbuf_size, size_t mb_cur_max)
 {
 	const char *begin = cp;
 	const char *last = cp + len;
@@ -1352,7 +1430,9 @@ find_ctype_info(const char *cp, size_t len, size_t *count,
 	wint_t a_wchar;
 	size_t n;
 	mbstate_t mbs;
-	const size_t mb_cur_max = MB_CUR_MAX;
+	bool invalid = false;
+
+	memset(& mbs, 0, sizeof(mbs));
 
 	w_name_buf = (wchar_t *) malloc((len + 1) * sizeof(wchar_t));
 	if (w_name_buf == NULL) {
@@ -1690,7 +1770,7 @@ const BRACKET_EXPR *bracket_expr;
 char *end;
 bracket_expr = bracket_expr_create(argv[optind], strlen(argv[optind]), & end,
                    escapes_allowed, ignore_case,
-                   errbuf, errbuf_size);
+                   errbuf, errbuf_size, MB_CUR_MAX);
 if (bracket_expr == NULL && expect_success) {
 	fprintf(stderr, "bad expression: %s\n", errbuf);
 	// can't dump the data, return was NULL
@@ -1708,6 +1788,7 @@ if (! quiet)
 int mb_cur_max = MB_CUR_MAX;
 for (cp = argv[optind + 1]; *cp != '\0';) {
 	size_t count;
+	bool isvalid = true;
 
 	count = mbrtowc(& wc, cp, mb_cur_max, & mbs);
 	if (count == (size_t) -1 || count == (size_t) -2) {
@@ -1715,10 +1796,11 @@ for (cp = argv[optind + 1]; *cp != '\0';) {
 		wc = *cp & 0xFF;
 		cp++;	// skip over it and hope;
 		memset(& mbs, 0, sizeof(mbs));	// reset the state
+		isvalid = false;
 	} else
 		cp += count;
 
-	bool matched = bracket_expr_match(bracket_expr, wc);
+	bool matched = bracket_expr_match(bracket_expr, wc, isvalid);
 	if (! matched && expect_success) {
 		fprintf(stderr, "%s: failed to match L'%lc', success expected.\n", argv[optind], wc);
 		@<dump the data if needed@>

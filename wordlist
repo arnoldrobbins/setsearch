@@ -1,6 +1,7 @@
 Awk
 Ayalon
 BUFSIZ
+Busybox
 CONFIG
 CTYPE
 EXPR
@@ -9,8 +10,10 @@ FIXME
 FORPRINT
 GETTEXT
 GLIBC
+GoAwk
 Haertel
 LC
+MKS
 NUL
 Nof
 SFdeiq
@@ -59,6 +62,7 @@ defgh
 defs
 deiq
 detailmenu
+dfa
 dfn
 docbook
 dquotexrefs
@@ -100,6 +104,7 @@ inlined
 insertcopying
 int
 inuse
+isvalid
 iswctype
 itemx
 jrtangle
@@ -109,6 +114,7 @@ lc
 len
 libre
 literallayout
+lu
 malloc
 mbrtowc
 mbs
@@ -131,6 +137,7 @@ printindex
 pt
 qsort
 realloc
+regex
 regexp
 runtests
 samp
@@ -193,4 +200,5 @@ wctype
 wint
 wtype
 www
+xFF
 xref

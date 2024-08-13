@@ -2,30 +2,35 @@ expect success: [abcdefghijklmnopqrstuvwxyz]: abcdhq
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'a', end = L'z'
 
 expect success: [^abcdefghijklmnopqrstuvwxyz]: ABCDHQ
 complemented = true
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'a', end = L'z'
 
 expect failure: [abcdefghijklmnopqrstuvwxyz]: ABCDHQ
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'a', end = L'z'
 
 expect failure: [^abcdefghijklmnopqrstuvwxyz]: abcdhq
 complemented = true
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'a', end = L'z'
 
 expect success: [abcdefghijklmnopqrstuvwxyz]: abcdhqABCDHQ
 complemented = false
 escapes_allowed = false
 ignore_case = true
+mb_cur_max = 6
   0. RANGE: start = L'A', end = L'Z'
   1. RANGE: start = L'a', end = L'z'
 
@@ -33,6 +38,7 @@ expect failure: [^abcdefghijklmnopqrstuvwxyz]: abcdhqABCDHQ
 complemented = true
 escapes_allowed = false
 ignore_case = true
+mb_cur_max = 6
   0. RANGE: start = L'A', end = L'Z'
   1. RANGE: start = L'a', end = L'z'
 
@@ -40,6 +46,7 @@ expect success: [abc\[:digit\]1-4]: ad:[]2
 complemented = false
 escapes_allowed = true
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'1', end = L'4'
   1. RANGE: start = L':', end = L':'
   2. RANGE: start = L'[', end = L'['
@@ -53,6 +60,7 @@ expect failure: [^abc\[:digit\]1-4]: ad:[]2
 complemented = true
 escapes_allowed = true
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'1', end = L'4'
   1. RANGE: start = L':', end = L':'
   2. RANGE: start = L'[', end = L'['
@@ -66,6 +74,7 @@ expect success: [abc\[-\]1-4]: a[]2
 complemented = false
 escapes_allowed = true
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'1', end = L'4'
   1. RANGE: start = L'[', end = L']'
   2. RANGE: start = L'a', end = L'c'
@@ -74,6 +83,7 @@ expect failure: [^abc\[-\]1-4]: a[]2
 complemented = true
 escapes_allowed = true
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'1', end = L'4'
   1. RANGE: start = L'[', end = L']'
   2. RANGE: start = L'a', end = L'c'
@@ -82,6 +92,7 @@ expect success: [,.![:digit:]^%[:lower:]@#[:digit:]A-D]: 2,.!^%ab@#B
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. CTYPE: [:lower:]
   1. CTYPE: [:digit:]
   2. RANGE: start = L'!', end = L'!'
@@ -96,6 +107,7 @@ expect failure: [^,.![:digit:]^%[:lower:]@#[:digit:]A-D]: 2,.!^%ab@#B
 complemented = true
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. CTYPE: [:lower:]
   1. CTYPE: [:digit:]
   2. RANGE: start = L'!', end = L'!'
@@ -110,6 +122,7 @@ expect success: [^,.![:digit:]^%[:lower:]@#[:digit:]A-D]: ()
 complemented = true
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. CTYPE: [:lower:]
   1. CTYPE: [:digit:]
   2. RANGE: start = L'!', end = L'!'
@@ -124,6 +137,7 @@ expect failure: [,.![:digit:]^%[:lower:]@#[:digit:]A-D]: ()
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. CTYPE: [:lower:]
   1. CTYPE: [:digit:]
   2. RANGE: start = L'!', end = L'!'
@@ -138,6 +152,7 @@ expect success: [abcdefqrsc-ha-c---DEF]: ah-E
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'-', end = L'-'
   1. RANGE: start = L'D', end = L'F'
   2. RANGE: start = L'a', end = L'h'
@@ -147,6 +162,7 @@ expect success: [abcdefqrsc-ha-c---DEF]: AH-e
 complemented = false
 escapes_allowed = false
 ignore_case = true
+mb_cur_max = 6
   0. RANGE: start = L'-', end = L'-'
   1. RANGE: start = L'A', end = L'H'
   2. RANGE: start = L'Q', end = L'S'
@@ -157,6 +173,7 @@ expect failure: [abcdefqrsc-ha-c---DEF]: 1234
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'-', end = L'-'
   1. RANGE: start = L'D', end = L'F'
   2. RANGE: start = L'a', end = L'h'
@@ -166,6 +183,7 @@ expect success: [\^\\abcde]: ab\^c
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'\', end = L'\'
   1. RANGE: start = L'^', end = L'^'
   2. RANGE: start = L'a', end = L'e'
@@ -174,6 +192,7 @@ expect success: []abc]: ]abc
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L']', end = L']'
   1. RANGE: start = L'a', end = L'c'
 
@@ -181,30 +200,35 @@ expect success: []-abc]: ]abc
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L']', end = L'c'
 
 expect failure: [^]-abc]: ]ab
 complemented = true
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L']', end = L'c'
 
 expect success: [--/]: ./-
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'-', end = L'/'
 
 expect success: []-_]: ]^_
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L']', end = L'_'
 
 expect success: []abc-]: ]ab-
 complemented = false
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'-', end = L'-'
   1. RANGE: start = L']', end = L']'
   2. RANGE: start = L'a', end = L'c'
@@ -213,6 +237,7 @@ expect failure: [^]abc-]: ]ab-
 complemented = true
 escapes_allowed = false
 ignore_case = false
+mb_cur_max = 6
   0. RANGE: start = L'-', end = L'-'
   1. RANGE: start = L']', end = L']'
   2. RANGE: start = L'a', end = L'c'

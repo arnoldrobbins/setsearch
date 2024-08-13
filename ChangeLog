@@ -1,3 +1,18 @@
+2024-08-13         Arnold D. Robbins     <arnold@skeeve.com>
+
+	Change our approach for invalid multibyte sequences.
+
+	* setsearch.twjr (bracket_expr_create): Add mb_cur_max parameter
+	and save it in the BRACKET_EXPR.  Check for invalid characters
+	as range endpoints.
+	(bracket_expr_match): New isvalid parameter; caller must know
+	if the wide character is valid or not.
+	(is_found): New isvalid parameter, used in decision of how
+	to search.
+	(bracket_expr_dump): Print the value of mb_cur_max member.
+	(find_ctype_info): Initialize mbs.
+	* tests.good, wordlist: Updated.
+
 2024-08-02         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* setsearch.twjr: For invalid multibyte sequences, just
