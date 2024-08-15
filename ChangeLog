@@ -1,3 +1,11 @@
+2024-08-15         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* setsearch.twjr: Change the create API to take flags instead
+	of a bunch of booleans. More extensible and easier to handle.
+	Add flag for excluding newlines from [^...].
+	Adjust the test code as well.
+	* tests.good, wordlist: Updated.
+
 2024-08-13         Arnold D. Robbins     <arnold@skeeve.com>
 
 	Change our approach for invalid multibyte sequences.

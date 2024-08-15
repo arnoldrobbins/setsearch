@@ -312,11 +312,16 @@ extern "C" {
 
 typedef struct _bracket_expr BRACKET_EXPR;
 
+enum setsearch_flags {
+	SS_ESCAPES_ALLOWED	= 0x01,
+	SS_IGNORE_CASE		= 0x02,
+	SS_NO_NEWLINES		= 0x04,
+};
+
 const BRACKET_EXPR *bracket_expr_create(const char *expr,
                                         size_t expr_len,
                                         char **endp,
-                                        bool escapes_allowed,
-                                        bool ignore_case,
+                                        int flags,
                                         char *errbuf,
                                         size_t errbuf_size,
                                         size_t mb_cur_max);
@@ -340,8 +345,6 @@ The routines and what they do are as follows:
 @item const BRACKET_EXPR *bracket_expr_create(const char *expr,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t expr_len,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char **endp,
-@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool escapes_allowed,
-@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ bool ignore_case,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char *errbuf,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t errbuf_size,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t mb_cur_max)
@@ -366,15 +369,8 @@ from @code{expr}.
 A pointer to a pointer. Upon success, @code{*end} is set to point to
 the byte immediately following the closing @samp{]}.
 
-@item bool escapes_allowed
-This should be set to
-@code{true} if @samp{\} may be used to
-escape characters within the bracket expression, such as @code{[ab\]d]},
-which is needed for the @command{awk} language.
-
-@item bool ignore_case
-This should be set to @code{true} if case should be ignored; e.g., @samp{a} and @samp{A}
-should be treated equivalently.
+@item int flags
+The bitwise-OR of one or more of the flags defined in the header.
 
 @item char *errbuf
 The address of a buffer into which @code{bracket_expr_create()} will
@@ -516,6 +512,7 @@ struct _bracket_expr {
 	bool	complemented;		// For [^...] sets
 	bool	escapes_allowed;	// For dumping
 	bool	ignore_case;		// For dumping
+	bool    no_newlines;		// For dumping
 	size_t  mb_cur_max;         // Needed for parsing and matching
 	size_t	nelems;				// Number of elements in use
 	size_t	allocated;			// Number allocated.
@@ -523,9 +520,9 @@ struct _bracket_expr {
 };
 @
 
-The @code{escapes_allowed} and @code{ignore_case} members are not
-strictly necessary. But they are useful when dumping the data in
-that it tells us how the bracket expression was constructed.
+The @code{escapes_allowed}, @code{ignore_case}, and @code{no_newlines}
+members are not strictly necessary. But they are useful when dumping
+the data in that it tells us how the bracket expression was constructed.
 
 @node The Easy Stuff
 @chapter The Easy Functions
@@ -543,6 +540,9 @@ bool
 bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char, bool isvalid)
 {
 	if (brack_expr == NULL)
+		return false;
+
+	if (the_char == L'\n' && brack_expr->no_newlines && brack_expr->complemented)
 		return false;
 
 	bool found = is_found(brack_expr, the_char, isvalid);
@@ -762,6 +762,7 @@ bracket_expr_dump(const BRACKET_EXPR *brack_expr, FILE *fp)
 	fprintf(fp, "complemented = %s\n", boolval[!! brack_expr->complemented]);
 	fprintf(fp, "escapes_allowed = %s\n", boolval[!! brack_expr->escapes_allowed]);
 	fprintf(fp, "ignore_case = %s\n", boolval[!! brack_expr->ignore_case]);
+	fprintf(fp, "no_newlines = %s\n", boolval[!! brack_expr->no_newlines]);
 	fprintf(fp, "mb_cur_max = %lu\n", brack_expr->mb_cur_max);
 
 	set_item *set = brack_expr->items;
@@ -813,14 +814,16 @@ This is the next wide character, found via lookahead.
 const BRACKET_EXPR *bracket_expr_create(const char *expr,
                                         size_t expr_len,
                                         char **endp,
-                                        bool escapes_allowed,
-                                        bool ignore_case,
+                                        int flags,
                                         char *errbuf,
                                         size_t errbuf_size,
                                         size_t mb_cur_max)
 {
 	@<variables for parsing@>
 	@<init variables for parsing@>
+	bool ignore_case = (flags & SS_IGNORE_CASE) != 0;
+	bool escapes_allowed = (flags & SS_ESCAPES_ALLOWED) != 0;
+	bool no_newlines = (flags & SS_NO_NEWLINES) != 0;
 
 	if (expr == NULL || endp == NULL) {
 		snprintf(errbuf, errbuf_size, _("bad pointers received"));
@@ -1035,6 +1038,7 @@ bracket_expr->allocated = INITIAL_SIZE;
 bracket_expr->nelems = 0;
 bracket_expr->escapes_allowed = escapes_allowed;
 bracket_expr->ignore_case = ignore_case;
+bracket_expr->no_newlines = no_newlines;
 bracket_expr->mb_cur_max = mb_cur_max;
 @
 
@@ -1709,7 +1713,8 @@ main(int argc, char **argv)
 @
 
 @<parse command line arguments@>=
-while ((c = getopt(argc, argv, "SFdeiq")) != -1) {
+int flags = 0;
+while ((c = getopt(argc, argv, "SFdeinq")) != -1) {
 	switch (c) {
 	case 'S':
 		expect_success = true;
@@ -1721,10 +1726,13 @@ while ((c = getopt(argc, argv, "SFdeiq")) != -1) {
 		dump_data = true;
 		break;
 	case 'e':
-		escapes_allowed = true;
+		flags |= SS_ESCAPES_ALLOWED;
 		break;
 	case 'i':
-		ignore_case = true;
+		flags |= SS_IGNORE_CASE;
+		break;
+	case 'n':
+		flags |= SS_NO_NEWLINES;
 		break;
 	case 'q':
 		quiet = true;
@@ -1758,6 +1766,7 @@ usage(const char *name)
 	fprintf(stderr, "\t-d\tDump the data structure.\n");
 	fprintf(stderr, "\t-e\tEscapes are allowed.\n");
 	fprintf(stderr, "\t-i\tIgnore case.\n");
+	fprintf(stderr, "\t-n\tNo newlines in [^...].\n");
 	fprintf(stderr, "\t-q\tRun quietly.\n");
 	exit(EXIT_FAILURE);
 }
@@ -1769,7 +1778,7 @@ size_t errbuf_size = sizeof(errbuf);
 const BRACKET_EXPR *bracket_expr;
 char *end;
 bracket_expr = bracket_expr_create(argv[optind], strlen(argv[optind]), & end,
-                   escapes_allowed, ignore_case,
+                   flags,
                    errbuf, errbuf_size, MB_CUR_MAX);
 if (bracket_expr == NULL && expect_success) {
 	fprintf(stderr, "bad expression: %s\n", errbuf);

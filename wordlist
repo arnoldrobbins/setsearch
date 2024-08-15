@@ -16,8 +16,9 @@ LC
 MKS
 NUL
 Nof
-SFdeiq
+SFdeinq
 SHORTTITLE
+SS
 TESTFILE
 TODO
 TexiWebJr
@@ -169,6 +170,7 @@ tDump
 tEscapes
 tExpect
 tIgnore
+tNo
 tRun
 tabstop
 testdata
