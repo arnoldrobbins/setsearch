@@ -1,3 +1,8 @@
+2024-08-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* setsearch.twjr: Restore `flags' in the summary desciption of
+	bracket_expr_create().
+
 2024-08-15         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* setsearch.twjr: Change the create API to take flags instead
