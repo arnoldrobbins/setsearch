@@ -991,7 +991,8 @@ if (n == (size_t) -1 || n == (size_t) -2) {
 	// treat bad bytes as individual code points,
 	// even if invalid and just skip over them.
 	a_wchar = *cp & 0xFF;
-	invalid = true;
+	if (mb_cur_max > 1)
+		invalid = true;
 	n = 1;
 	// after an invalid conversion, reinitialize *mbsp
 	memset(mbsp, 0, sizeof(*mbsp));
@@ -1007,7 +1008,8 @@ if (n == (size_t) -1 || n == (size_t) -2) {
 	// here too, treat bad bytes as individual code points,
 	// even if invalid and just skip over them.
 	a_wchar = *cp & 0xFF;
-	invalid = true;
+	if (mb_cur_max > 1)
+		invalid = true;
 	n = 1;
 	// after an invalid conversion, reinitialize *mbsp
 	memset(mbsp, 0, sizeof(*mbsp));
