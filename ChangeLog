@@ -1,3 +1,9 @@
+2024-08-22         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* setsearch.twjr (bracket_expr_create): API change per Mike's request.
+	The mbstate_t object comes in from the caller and goes back out.
+	Reorder the parameters in the API also.
+
 2024-08-16         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* setsearch.twjr: Restore `flags' in the summary desciption of

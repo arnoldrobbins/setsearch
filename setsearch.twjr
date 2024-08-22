@@ -321,10 +321,11 @@ enum setsearch_flags {
 const BRACKET_EXPR *bracket_expr_create(const char *expr,
                                         size_t expr_len,
                                         char **endp,
+                                        mbstate_t *mbsp,
                                         int flags,
+                                        size_t mb_cur_max,
                                         char *errbuf,
-                                        size_t errbuf_size,
-                                        size_t mb_cur_max);
+                                        size_t errbuf_size);
 
 bool bracket_expr_match(const BRACKET_EXPR *brack_expr,
                         int32_t the_char, bool isvalid);
@@ -345,10 +346,11 @@ The routines and what they do are as follows:
 @item const BRACKET_EXPR *bracket_expr_create(const char *expr,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t expr_len,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char **endp,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ mbstate_t *mbsp,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ int flags,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t mb_cur_max,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char *errbuf,
-@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t errbuf_size,
-@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t mb_cur_max)
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t errbuf_size)
 This function parses the bracket expression, and if successful, returns
 a pointer to an opaque @code{BRACKET_EXPR} structure to be used by other
 routines. Upon failure, it returns @code{NULL}.  The parameters are:
@@ -370,8 +372,16 @@ from @code{expr}.
 A pointer to a pointer. Upon success, @code{*end} is set to point to
 the byte immediately following the closing @samp{]}.
 
+@item mbstate_t mbsp
+A pointer to the @code{mbstate_t} object being used to parse the
+regular expression.  It is updated as the bracket expression is parsed.
+
 @item int flags
 The bitwise-OR of one or more of the flags defined in the header.
+
+@item size_t mb_cur_max
+The value of @code{MB_CUR_MAX}.  We don't use that constant
+directly since on GLIBC systems (at least) it hides a function call.
 
 @item char *errbuf
 The address of a buffer into which @code{bracket_expr_create()} will
@@ -381,10 +391,6 @@ already have been translated by @code{gettext()}.
 
 @item size_t errbuf_size
 The size of @code{errbuf}'s buffer.
-
-@item size_t mb_cur_max
-The value of @code{MB_CUR_MAX}.  We don't use that constant
-directly since on GLIBC systems (at least) it hides a function call.
 @end table
 @c end nested table
 
@@ -815,10 +821,11 @@ This is the next wide character, found via lookahead.
 const BRACKET_EXPR *bracket_expr_create(const char *expr,
                                         size_t expr_len,
                                         char **endp,
+                                        mbstate_t *mbsp,
                                         int flags,
+                                        size_t mb_cur_max,
                                         char *errbuf,
-                                        size_t errbuf_size,
-                                        size_t mb_cur_max)
+                                        size_t errbuf_size)
 {
 	@<variables for parsing@>
 	@<init variables for parsing@>
@@ -944,7 +951,6 @@ retrieve the value once.
 
 @<variables for parsing@>=
 wint_t a_wchar, cur_wchar, next_wchar;
-mbstate_t mbs;
 size_t n;
 const char *cp, *last;
 bool at_first_char = true;
@@ -956,7 +962,6 @@ bool first_range_char_invalid = false;
 Initialization is obvious:
 
 @<init variables for parsing@>=
-memset(& mbs, 0, sizeof(mbs));
 cp = expr;
 last = expr + expr_len;
 @
@@ -981,15 +986,15 @@ if (escapes_allowed && a_wchar == L'\\') {
 This actually gets the next wide character:
 
 @<get a wide character@>=
-n = mbrtowc(& a_wchar, cp, mb_cur_max, & mbs);
+n = mbrtowc(& a_wchar, cp, mb_cur_max, mbsp);
 if (n == (size_t) -1 || n == (size_t) -2) {
 	// treat bad bytes as individual code points,
 	// even if invalid and just skip over them.
 	a_wchar = *cp & 0xFF;
 	invalid = true;
 	n = 1;
-	// after an invalid conversion, reinitialize mbs
-	memset(& mbs, 0, sizeof(mbs));
+	// after an invalid conversion, reinitialize *mbsp
+	memset(mbsp, 0, sizeof(*mbsp));
 }
 cp += n;
 @
@@ -997,15 +1002,15 @@ cp += n;
 And we also need to be able to peek ahead:
 
 @<peek at next wide character@>=
-n = mbrtowc(& next_wchar, cp, mb_cur_max, & mbs);
+n = mbrtowc(& next_wchar, cp, mb_cur_max, mbsp);
 if (n == (size_t) -1 || n == (size_t) -2) {
 	// here too, treat bad bytes as individual code points,
 	// even if invalid and just skip over them.
 	a_wchar = *cp & 0xFF;
 	invalid = true;
 	n = 1;
-	// after an invalid conversion, reinitialize mbs
-	memset(& mbs, 0, sizeof(mbs));
+	// after an invalid conversion, reinitialize *mbsp
+	memset(mbsp, 0, sizeof(*mbsp));
 }
 // since we are peeking, we do NOT advance cp
 @
@@ -1401,7 +1406,7 @@ if (cur_wchar == L':') {
 	const char *the_name = NULL;
 
 	if (! find_ctype_info(cp, last - cp, & count, & the_type, & the_name,
-			errbuf, errbuf_size, mb_cur_max)) {
+			errbuf, errbuf_size, mb_cur_max, mbsp)) {
 		if (the_name != NULL)
 			free((void *) the_name);
 		goto fail;
@@ -1425,7 +1430,8 @@ if (cur_wchar == L':') {
 static bool
 find_ctype_info(const char *cp, size_t len, size_t *count,
                 wctype_t *the_type, const char **the_name,
-                char *errbuf, size_t errbuf_size, size_t mb_cur_max)
+                char *errbuf, size_t errbuf_size, size_t mb_cur_max,
+                mbstate_t *mbsp)
 {
 	const char *begin = cp;
 	const char *last = cp + len;
@@ -1434,10 +1440,7 @@ find_ctype_info(const char *cp, size_t len, size_t *count,
 	wchar_t *namep = NULL;
 	wint_t a_wchar;
 	size_t n;
-	mbstate_t mbs;
 	bool invalid = false;
-
-	memset(& mbs, 0, sizeof(mbs));
 
 	w_name_buf = (wchar_t *) malloc((len + 1) * sizeof(wchar_t));
 	if (w_name_buf == NULL) {
@@ -1471,6 +1474,7 @@ find_ctype_info(const char *cp, size_t len, size_t *count,
 	}
 	memset(name_buf, 0, len + 1);
 
+	mbstate_t mbs;	// use a separate mbstate_t
 	memset(& mbs, 0, sizeof(mbs));
 	const wchar_t *name_start = w_name_buf;
 	wcsrtombs(name_buf, & name_start, len + 1, & mbs);
@@ -1778,9 +1782,11 @@ char errbuf[BUFSIZ];
 size_t errbuf_size = sizeof(errbuf);
 const BRACKET_EXPR *bracket_expr;
 char *end;
+mbstate_t mbs;
+memset(& mbs, 0, sizeof(mbs));
 bracket_expr = bracket_expr_create(argv[optind], strlen(argv[optind]), & end,
-                   flags,
-                   errbuf, errbuf_size, MB_CUR_MAX);
+                   & mbs, flags, MB_CUR_MAX,
+                   errbuf, errbuf_size);
 if (bracket_expr == NULL && expect_success) {
 	fprintf(stderr, "bad expression: %s\n", errbuf);
 	// can't dump the data, return was NULL
@@ -1789,7 +1795,6 @@ if (bracket_expr == NULL && expect_success) {
 @
 
 @<test each wide character in the test case against the expression@>=
-mbstate_t mbs;
 memset(& mbs, 0, sizeof(mbs));
 if (! quiet)
 	printf("expect %s: %s: %s\n", expect_success ? "success" : "failure",
