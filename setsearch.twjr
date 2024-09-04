@@ -18,7 +18,7 @@
 @c This sets the edition of the document.
 
 @c These apply across the board.
-@set UPDATE-MONTH August, 2024
+@set UPDATE-MONTH September, 2024
 @set EDITION 0.4
 
 @set TITLE Efficient Searching of Large Character Sets
@@ -549,10 +549,14 @@ bracket_expr_match(const BRACKET_EXPR *brack_expr, int32_t the_char, bool isvali
 	if (brack_expr == NULL)
 		return false;
 
+	// invalid characters never match a bracket expression
+	if (! isvalid)
+		return false;
+
 	if (the_char == L'\n' && brack_expr->no_newlines && brack_expr->complemented)
 		return false;
 
-	bool found = is_found(brack_expr, the_char, isvalid);
+	bool found = is_found(brack_expr, the_char);
 	if (brack_expr->complemented)
 		found = ! found;		// reverse sense of the match
 
@@ -593,7 +597,7 @@ keep things simple.
 /* is_found --- return true if the character is found */
 
 static bool
-is_found(const BRACKET_EXPR *brack_expr, int32_t the_char, bool is_valid)
+is_found(const BRACKET_EXPR *brack_expr, int32_t the_char)
 {
 	set_item *set = brack_expr->items;
 	int i;
@@ -660,25 +664,19 @@ it's an invalid set. (Parse time condition.)
 We will deal with the parse time conditions later when we build
 the bracket expression.
 
-It turns out that the multibyte ``does not match'' conditions all
-reduce to ``is the character not valid?''  If so, we can simply return
-@code{false} instead of trying to do a search.
-
 @<Search for a @code{RANGE_ITEM}@>=
 assert(set[i].item_type == RANGE_ITEM);
-if (brack_expr->mb_cur_max == 1 || is_valid) {
-	// binary search to see if we have it
-	set_item *found;
-	set_item key;
-	key.item_type = RANGE_ITEM;
-	key.start = key.end = the_char;
 
-	found = bsearch(& key, set + i, brack_expr->nelems - i,
-					sizeof(set_item), item_compare_for_searching);
+// binary search to see if we have it
+set_item *found;
+set_item key;
+key.item_type = RANGE_ITEM;
+key.start = key.end = the_char;
 
-	return found != NULL;
-} else
-	return false;
+found = bsearch(& key, set + i, brack_expr->nelems - i,
+				sizeof(set_item), item_compare_for_searching);
+
+return found != NULL;
 @
 
 We need the header file for assertions:
