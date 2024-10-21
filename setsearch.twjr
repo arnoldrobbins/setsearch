@@ -320,7 +320,7 @@ enum setsearch_flags {
 
 const BRACKET_EXPR *bracket_expr_create(const char *expr,
                                         size_t expr_len,
-                                        char **endp,
+                                        const char **endp,
                                         mbstate_t *mbsp,
                                         int flags,
                                         size_t mb_cur_max,
@@ -345,7 +345,7 @@ The routines and what they do are as follows:
 @table @code
 @item const BRACKET_EXPR *bracket_expr_create(const char *expr,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t expr_len,
-@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ char **endp,
+@itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ const char **endp,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ mbstate_t *mbsp,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ int flags,
 @itemx @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ @ size_t mb_cur_max,
@@ -368,7 +368,7 @@ be included in the regexp and matched.
 How many bytes are available to be processed starting
 from @code{expr}.
 
-@item char **endp
+@item const char **endp
 A pointer to a pointer. Upon success, @code{*end} is set to point to
 the byte immediately following the closing @samp{]}.
 
@@ -818,7 +818,7 @@ This is the next wide character, found via lookahead.
 
 const BRACKET_EXPR *bracket_expr_create(const char *expr,
                                         size_t expr_len,
-                                        char **endp,
+                                        const char **endp,
                                         mbstate_t *mbsp,
                                         int flags,
                                         size_t mb_cur_max,
@@ -932,7 +932,7 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 	@<condense wide character list into @code{RANGE_ITEM}s@>
 	@<condense final array of @code{set_item}s@>
 
-	*endp = (char *) cp;
+	*endp = cp;
 
 	return bracket_expr;
 
