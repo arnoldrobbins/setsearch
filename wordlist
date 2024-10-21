@@ -119,6 +119,7 @@ lu
 malloc
 mbrtowc
 mbs
+mbsp
 mbstate
 memset
 minrx

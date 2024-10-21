@@ -3,6 +3,7 @@
 	* setsearch.twjr: Change type of endp to const char **.
 	Remove some obsolete prose.
 	(UPDATE-MONTH, EDITION): Update.
+	* wordlist: Updated.
 
 2024-09-04         Arnold D. Robbins     <arnold@skeeve.com>
 
