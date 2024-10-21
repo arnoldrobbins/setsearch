@@ -1,3 +1,9 @@
+2024-10-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* setsearch.twjr: Change type of endp to const char **.
+	Remove some obsolete prose.
+	(UPDATE-MONTH, EDITION): Update.
+
 2024-09-04         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* setsearch.twjr (bracket_expr_match, is_found): Simplify handling

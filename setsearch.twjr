@@ -18,8 +18,8 @@
 @c This sets the edition of the document.
 
 @c These apply across the board.
-@set UPDATE-MONTH September, 2024
-@set EDITION 0.4
+@set UPDATE-MONTH October, 2024
+@set EDITION 0.5
 
 @set TITLE Efficient Searching of Large Character Sets
 @set SHORTTITLE Searching Character Sets
@@ -943,9 +943,7 @@ fail:
 @
 
 Here are the variables we need when working through
-the expression using wide characters.  Since the GLIBC
-@code{MB_CUR_MAX} macro hides a function call, we
-retrieve the value once.
+the expression using wide characters.
 
 @<variables for parsing@>=
 wint_t a_wchar, cur_wchar, next_wchar;
