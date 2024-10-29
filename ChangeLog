@@ -1,3 +1,11 @@
+2024-10-29         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* setsearch.twjr: Add SS_DOT and revise code so can match
+	anything.
+	(btest.c): Updated, new -D option for dot.
+	(EDITION): Updated.
+	* wordlist: Updated.
+
 2024-10-21         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* setsearch.twjr: Change type of endp to const char **.

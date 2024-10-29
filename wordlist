@@ -16,7 +16,7 @@ LC
 MKS
 NUL
 Nof
-SFdeinq
+SFdDeinq
 SHORTTITLE
 SS
 TESTFILE
@@ -171,6 +171,7 @@ tDump
 tEscapes
 tExpect
 tIgnore
+tMatch
 tNo
 tRun
 tabstop

@@ -19,7 +19,7 @@
 
 @c These apply across the board.
 @set UPDATE-MONTH October, 2024
-@set EDITION 0.5
+@set EDITION 0.6
 
 @set TITLE Efficient Searching of Large Character Sets
 @set SHORTTITLE Searching Character Sets
@@ -316,6 +316,7 @@ enum setsearch_flags {
 	SS_ESCAPES_ALLOWED	= 0x01,
 	SS_IGNORE_CASE		= 0x02,
 	SS_NO_NEWLINES		= 0x04,
+	SS_DOT			= 0x08,
 };
 
 const BRACKET_EXPR *bracket_expr_create(const char *expr,
@@ -378,6 +379,7 @@ regular expression.  It is updated as the bracket expression is parsed.
 
 @item int flags
 The bitwise-OR of one or more of the flags defined in the header.
+@strong{FIXME:} Go through them here.
 
 @item size_t mb_cur_max
 The value of @code{MB_CUR_MAX}.  We don't use that constant
@@ -835,14 +837,27 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 		snprintf(errbuf, errbuf_size, _("bad pointers received"));
 		return NULL;
 	}
+	@<allocate initial data@>
 
 	@<get a wide character@>
+	if (a_wchar == L'.' && (flags & SS_DOT) != 0) {
+		if (no_newlines) {
+			if (! push_range_item(bracket_expr, ignore_case, 0, L'\n' - 1, errbuf, errbuf_size))
+				goto fail;
+			if (! push_range_item(bracket_expr, ignore_case, L'\n' + 1, 0x110000 - 1, errbuf, errbuf_size))
+				goto fail;
+		} else {
+			if (! push_range_item(bracket_expr, ignore_case, 0, 0x110000 - 1, errbuf, errbuf_size))
+				goto fail;
+		}
+		goto done;
+	}
+
 	if (a_wchar != L'[') {
 		snprintf(errbuf, errbuf_size, _("bad bracket expression"));
 		return NULL;
 	}
 
-	@<allocate initial data@>
 	set_item *items = bracket_expr->items;
 
 	// main loop:
@@ -928,6 +943,7 @@ const BRACKET_EXPR *bracket_expr_create(const char *expr,
 		goto fail;
 	}
 
+done:
 	@<sort wide character list@>
 	@<condense wide character list into @code{RANGE_ITEM}s@>
 	@<condense final array of @code{set_item}s@>
@@ -1717,7 +1733,7 @@ main(int argc, char **argv)
 
 @<parse command line arguments@>=
 int flags = 0;
-while ((c = getopt(argc, argv, "SFdeinq")) != -1) {
+while ((c = getopt(argc, argv, "SFdDeinq")) != -1) {
 	switch (c) {
 	case 'S':
 		expect_success = true;
@@ -1727,6 +1743,9 @@ while ((c = getopt(argc, argv, "SFdeinq")) != -1) {
 		break;
 	case 'd':
 		dump_data = true;
+		break;
+	case 'D':
+		flags |= SS_DOT;
 		break;
 	case 'e':
 		flags |= SS_ESCAPES_ALLOWED;
@@ -1767,9 +1786,10 @@ usage(const char *name)
 	fprintf(stderr, "\t-S\tExpect match success.\n");
 	fprintf(stderr, "\t-F\tExpect failure of some kind.\n");
 	fprintf(stderr, "\t-d\tDump the data structure.\n");
+	fprintf(stderr, "\t-D\tMatch \"dot\" (any character).\n");
 	fprintf(stderr, "\t-e\tEscapes are allowed.\n");
 	fprintf(stderr, "\t-i\tIgnore case.\n");
-	fprintf(stderr, "\t-n\tNo newlines in [^...].\n");
+	fprintf(stderr, "\t-n\tNo newlines in [^...] or \"dot\".\n");
 	fprintf(stderr, "\t-q\tRun quietly.\n");
 	exit(EXIT_FAILURE);
 }
@@ -1779,7 +1799,7 @@ usage(const char *name)
 char errbuf[BUFSIZ];
 size_t errbuf_size = sizeof(errbuf);
 const BRACKET_EXPR *bracket_expr;
-char *end;
+const char *end;
 mbstate_t mbs;
 memset(& mbs, 0, sizeof(mbs));
 bracket_expr = bracket_expr_create(argv[optind], strlen(argv[optind]), & end,
