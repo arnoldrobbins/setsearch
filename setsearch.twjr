@@ -513,7 +513,7 @@ aren't contiguous with others are placed in a range where
 @end itemize
 
 The full bracket expression holds a dynamically allocated
-array of @code{set_items}, plus what's needed for managing
+array of @code{set_item}s, plus what's needed for managing
 the memory:
 
 @<data structures@>=
